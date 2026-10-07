@@ -1,8 +1,6 @@
-{
-  "name": "hui-xiao-dao-engine",
-  "main": "worker.js",
-  "compatibility_date": "2025-01-01",
-  "observability": {
-    "enabled": true
-  }
-}
+name = "hui-xiao-dao-engine"
+main = "worker.js"
+compatibility_date = "2025-01-01"
+
+[observability]
+enabled = true
