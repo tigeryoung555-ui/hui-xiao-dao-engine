@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>会小导·学习中心｜会计学专业导论 AI 学习平台</title>
+<style>
+  :root{
+    --bg:#f4f7fb; --panel:#ffffff; --ink:#1f2329; --sub:#5a6573;
+    --line:#e3e9f0; --brand:#2f6fed; --brand-d:#1d4fc4;
+    --red:#e23d3d; --green:#1aa15a; --amber:#e8a300;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:"Microsoft YaHei","PingFang SC",system-ui,sans-serif;background:var(--bg);color:var(--ink);line-height:1.6}
+  .hidden{display:none!important}
+  button{cursor:pointer;font-family:inherit}
+  .field input, .field select{width:100%;padding:11px 13px;border:1px solid var(--line);border-radius:10px;font-size:14px;background:#fbfdff}
+  .field input:focus,.field select:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 2px rgba(47,111,237,.15)}
+  .btn{padding:12px;border:none;border-radius:10px;background:var(--brand);color:#fff;font-size:15px;font-weight:600;transition:.2s}
+  .btn:hover{background:var(--brand-d)}
+  .btn.ghost{background:#eef3ff;color:var(--brand-d)}
+  .btn.sm{padding:11px 18px;width:auto}
+  /* 登录 */
+  #login-wrap{display:flex;min-height:100vh;align-items:center;justify-content:center;background:linear-gradient(135deg,#eef3ff,#f7f9fc)}
+  .auth-card{background:var(--panel);border-radius:18px;padding:38px 42px;width:380px;box-shadow:0 12px 40px rgba(31,80,200,.12)}
+  .auth-card h1{font-size:24px;margin-bottom:6px;color:var(--brand-d)}
+  .auth-card .sub{color:var(--sub);font-size:13px;margin-bottom:24px}
+  .field{margin-bottom:16px}
+  .field label{display:block;font-size:13px;color:var(--sub);margin-bottom:6px}
+  .auth-switch{margin-top:16px;text-align:center;font-size:13px;color:var(--sub)}
+  .auth-switch a{color:var(--brand);cursor:pointer;text-decoration:none;font-weight:600}
+  .auth-tip{margin-top:14px;font-size:12px;color:var(--sub);background:#fff7e6;border:1px solid #ffe0a3;padding:10px;border-radius:8px}
+  /* 主框架 */
+  #app{display:flex;min-height:100vh}
+  .sidebar{width:230px;background:#fff;border-right:1px solid var(--line);padding:22px 16px;position:sticky;top:0;height:100vh;overflow:auto}
+  .logo{font-size:19px;font-weight:700;color:var(--brand-d);margin-bottom:4px}
+  .logo small{display:block;font-size:12px;color:var(--sub);font-weight:400}
+  .nav-item{display:block;width:100%;text-align:left;border:none;background:none;padding:11px 14px;border-radius:10px;font-size:14px;color:var(--sub);margin-bottom:4px}
+  .nav-item.active{background:#eef3ff;color:var(--brand-d);font-weight:600}
+  .nav-item:hover{background:#f0f4fb}
+  .user-box{margin-top:auto;padding-top:16px;border-top:1px solid var(--line);font-size:13px}
+  .user-box .uname{font-weight:600;color:var(--ink)}
+  .main{flex:1;padding:30px 40px;overflow:auto}
+  .page-title{font-size:22px;font-weight:700;margin-bottom:4px}
+  .page-sub{color:var(--sub);font-size:14px;margin-bottom:22px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px;margin-bottom:18px}
+  .card h3{font-size:16px;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+  .grid{display:grid;gap:16px}
+  .grid.g2{grid-template-columns:repeat(2,1fr)}
+  .grid.g3{grid-template-columns:repeat(3,1fr)}
+  .stat{background:linear-gradient(135deg,#eef3ff,#f7fbff);border-radius:12px;padding:18px}
+  .stat .num{font-size:30px;font-weight:800;color:var(--brand-d)}
+  .stat .lab{font-size:13px;color:var(--sub);margin-top:4px}
+  .tag{display:inline-block;font-size:11px;padding:2px 8px;border-radius:20px;background:#eef3ff;color:var(--brand-d);margin:2px 4px 2px 0}
+  .checkin-row{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end}
+  .checkin-row .field{flex:1;min-width:160px;margin-bottom:0}
+  .records{margin-top:18px}
+  .rec-item{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom: 8px;display:flex;justify-content:space-between;align-items:center;font-size:13px}
+  .rec-item .date{font-weight:600}
+  .rec-item .meta{color:var(--sub)}
+  .quiz-q{margin-bottom:18px;border-bottom:1px dashed var(--line);padding-bottom:16px}
+  .quiz-q .q{font-weight:600;margin-bottom:10px}
+  .opt{display:block;padding:9px 12px;border:1px solid var(--line);border-radius:9px;margin-bottom:7px;cursor:pointer;font-size:14px}
+  .opt:hover{border-color:var(--brand)}
+  .opt.sel{border-color:var(--brand);background:#eef3ff}
+  .opt.correct{border-color:var(--green);background:#eafaf0}
+  .opt.wrong{border-color:var(--red);background:#fdeeee}
+  .explain{margin-top:8px;font-size:13px;padding:10px 12px;border-radius:9px;background:#f6f8fc}
+  .explain .ok{color:var(--green);font-weight:600}
+  .explain .bad{color:var(--red);font-weight:600}
+  .chat{display:flex;flex-direction:column;gap:12px;max-height:60vh;overflow:auto;padding:4px}
+  .bubble{max-width:80%;padding:12px 15px;border-radius:14px;font-size:14px}
+  .bubble.user{align-self:flex-end;background:var(--brand);color:#fff;border-bottom-right-radius:4px}
+  .bubble.bot{align-self:flex-start;background:#fff;border:1px solid var(--line);border-bottom-left-radius:4px}
+  .bubble.bot .obe{display:inline-block;font-size:11px;color:var(--brand-d);background:#eef3ff;padding:1px 7px;border-radius:6px;margin-top:6px}
+  .chat-input{display:flex;gap:10px;margin-top:14px}
+  .chat-input input{flex:1;padding:11px 14px;border:1px solid var(--line);border-radius:10px;font-size:14px}
+  /* 模型回答的 Markdown 渲染 */
+  .md-h{font-weight:600;font-size:14px;color:#2f6fed;margin:8px 0 4px}
+  .md-p{margin:4px 0;line-height:1.65}
+  .md-ul,.md-ol{margin:6px 0;padding-left:20px;line-height:1.65}
+  .md-ul{list-style:disc}
+  .md-ol{list-style:decimal}
+  .bubble.bot code{background:#eef1f6;padding:1px 5px;border-radius:4px;font-size:13px}
+  .grounded{margin:2px 0 12px;padding:8px 12px;border-left:3px solid #c8d4ea;background:#f6f8fc;border-radius:0 8px 8px 0;font-size:12px;color:#6b7382}
+  #online-tag{cursor:pointer}
+  .radar-wrap{display:flex;gap:30px;flex-wrap:wrap;align-items:center}
+  .dim-list{font-size:14px;min-width:200px}
+  .dim-list div{margin-bottom:10px}
+  .bar{height:10px;border-radius:6px;background:#eef3ff;margin-top:3px;overflow:hidden}
+  .bar i{display:block;height:100%;background:var(--brand)}
+  #toast{position:fixed;top:24px;left:50%;transform:translateX(-50%);background:#1f2329;color:#fff;padding:11px 20px;border-radius:10px;font-size:14px;opacity:0;transition:.3s;z-index:99}
+  /* 课次资源面板 */
+  .lesson{border:1px solid var(--line);border-radius:10px;background:#fbfdff;margin-bottom:10px;overflow:hidden}
+  .lesson>summary{padding:12px 14px;cursor:pointer;font-weight:600;color:var(--brand-d);list-style:none;font-size:14px;user-select:none}
+  .lesson>summary::-webkit-details-marker{display:none}
+  .lesson>summary::before{content:"▸ ";color:var(--sub);margin-right:4px}
+  .lesson[open]>summary::before{content:"▾ "}
+  .res{margin:6px 14px 14px;list-style:none;padding:0}
+  .res li{display:flex;gap:10px;padding:11px 8px;border-bottom:1px dashed var(--line);align-items:flex-start}
+  .res li:last-child{border-bottom:none}
+  .res .ri{font-size:18px;flex:0 0 22px;text-align:center;margin-top:2px}
+  .res .rb{font-size:13.5px;color:var(--ink);font-weight:600}
+  .res .rt{display:inline-block;font-size:11px;background:#eef3ff;color:var(--brand-d);padding:1px 8px;border-radius:10px;margin-left:6px;font-weight:500}
+  .res p{margin:4px 0 0;font-size:12.5px;color:var(--sub);line-height:1.55}
+  .res .rp{display:block;margin-top:4px;font-size:11px;color:var(--brand)}
+  .res .ra{display:inline-block;margin-top:6px;font-size:11px;padding:4px 10px;border:1px solid var(--brand);border-radius:6px;color:var(--brand);cursor:pointer;background:#fff;font-weight:600}
+  .res .ra:hover{background:var(--brand);color:#fff}
+  .lesson-foot{padding:8px 14px 12px;font-size:12px;color:var(--sub);border-top:1px dashed var(--line);margin-top:6px;background:#fff}
+  #toast.show{opacity:1}
+  @media(max-width:760px){.sidebar{display:none}.grid.g2,.grid.g3{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<!-- ======= 登录/注册 ======= -->
+<div id="login-wrap">
+  <div class="auth-card">
+    <h1>会小导 · 学习中心</h1>
+    <div class="sub">会计学专业导论 · AI 学习平台（学生端）</div>
+    <div id="login-form">
+      <div class="field"><label>学号 / 账号</label><input id="login-user" placeholder="请输入学号"></div>
+      <div class="field"><label>密码</label><input id="login-pwd" type="password" placeholder="请输入密码"></div>
+      <button class="btn" onclick="doLogin()">登 录</button>
+      <div class="auth-switch">还没有账号？<a onclick="showReg()">注册新账号</a></div>
+    </div>
+    <div id="reg-form" class="hidden">
+      <div class="field"><label>学号</label><input id="reg-id" placeholder="如 20240xxxxx"></div>
+      <div class="field"><label>姓名</label><input id="reg-name" placeholder="真实姓名"></div>
+      <div class="field"><label>密码</label><input id="reg-pwd" type="password" placeholder="设置密码"></div>
+      <div class="field"><label>确认密码</label><input id="reg-pwd2" type="password" placeholder="再次输入密码"></div>
+      <button class="btn" onclick="doReg()">注 册</button>
+      <div class="auth-switch">已有账号？<a onclick="showLogin()">返回登录</a></div>
+    </div>
+    <div class="auth-tip">⚠️ 本平台为本地演示版，数据仅保存在你当前浏览器（localStorage），不会上传。注册即同意以学号作为唯一标识。</div>
+  </div>
+</div>
+
+<!-- ======= 主应用 ======= -->
+<div id="app" class="hidden">
+  <div class="sidebar">
+    <div class="logo">会小导·学习中心<small>会计学专业导论 AI 助手</small></div>
+    <div id="online-tag" style="font-size:12px;margin-bottom:12px;color:#e8a300">● 检测引擎状态…</div>
+    <button class="nav-item active" onclick="nav('home')">🏠 学习概览</button>
+    <button class="nav-item" onclick="nav('checkin')">📅 学习打卡</button>
+    <button class="nav-item" onclick="nav('practice')">📝 习题练习</button>
+    <button class="nav-item" onclick="nav('ask')">💬 智能问答</button>
+    <button class="nav-item" onclick="nav('exam')">🎯 智能考核</button>
+    <div class="user-box">
+      <div class="uname" id="side-name">—</div>
+      <div id="side-id" style="color:var(--sub)">—</div>
+      <button class="btn ghost sm" style="margin-top:10px" onclick="logout()">退出登录</button>
+    </div>
+  </div>
+  <div class="main">
+    <!-- 首页 -->
+    <section id="page-home">
+      <div class="page-title">学习概览</div>
+      <div class="page-sub" id="welcome">欢迎回来！</div>
+      <div class="grid g3">
+        <div class="stat"><div class="num" id="st-checkin">0</div><div class="lab">累计打卡天数</div></div>
+        <div class="stat"><div class="num" id="st-streak">0</div><div class="lab">连续打卡天数 🔥</div></div>
+        <div class="stat"><div class="num" id="st-practice">0</div><div class="lab">完成练习题数</div></div>
+      </div>
+      <div class="card">
+        <h3>🎯 课程 OBE 成果达成度</h3>
+        <div class="radar-wrap">
+          <div id="radar-home" style="flex:0 0 320px"></div>
+          <div class="dim-list" id="dim-home"></div>
+        </div>
+      </div>
+      <div class="card">
+        <h3>📚 四课次学习地图 · 配套资源</h3>
+        <p style="font-size:13px;color:var(--sub);margin-bottom:12px">每个课次配套讲义 / 阅读 / 工具，点击课次展开查看；用「习题练习」或「智能考核」巩固。（GitHub Pages 静态部署，AI 问答降级为内置知识库）</p>
+
+        <details class="lesson" open>
+          <summary>① 初识会计 · 建立专业认知 · 建议 4–6 学时</summary>
+          <ul class="res">
+            <li><span class="ri">📘</span><div><span class="rb">会计是什么<span class="rt">教材 · 通识</span></span><p>会计是企业经济活动的「商业通用语言」，把经营活动翻译成可比、可验证的数字信息，保障交易信任链。</p><span class="rp">对应 KB：会计是什么（知识 1.1）</span></div></li>
+            <li><span class="ri">📘</span><div><span class="rb">会计四大基本假设与八大质量要求<span class="rt">教材 · 基础</span></span><p>假设：会计主体、持续经营、会计分期、货币计量；质量：可靠性 / 相关性 / 可比性 / 谨慎性 等八项。</p><span class="rp">对应 KB：会计基本假设、会计信息质量（知识 1.2）</span></div></li>
+            <li><span class="ri">📘</span><div><span class="rb">会计等式 · 借贷规则 · 三大报表<span class="rt">教材 · 核心</span></span><p>静态等式 资产＝负债＋所有者权益；有借必有贷，借贷必相等；三张报表的勾稽关系。</p><span class="rp">对应 KB：会计等式、借贷规则、财务报表（知识 1.3）</span></div></li>
+            <li><span class="ri">📖</span><div><span class="rb">会计发展史与数智化趋势<span class="rt">阅读 · 拓展</span></span><p>从手工 → 电算化 → 信息化 → 数智化；帕乔利复式簿记与中国「四柱清册」。</p><span class="rp">对应 KB：会计发展史（知识 1.6）</span></div></li>
+            <li><span class="ri">🧪</span><div><span class="rb">巩固练习 · 知识维度 11 题<span class="rt">习题</span></span><p>从「习题练习」选「知识」模块开始，覆盖假设 / 等式 / 借贷 / 报表 / 要素 / 计量属性。</p><button class="ra" onclick="nav('practice')">前往习题 →</button></div></li>
+          </ul>
+          <div class="lesson-foot">🎯 学习目标：理解会计本质、掌握基本概念，能区分财务会计 / 管理会计 等分支。</div>
+        </details>
+
+        <details class="lesson">
+          <summary>② 专业解码 · 培养方案与专业分支 · 建议 3–5 学时</summary>
+          <ul class="res">
+            <li><span class="ri">📘</span><div><span class="rb">会计五大分支<span class="rt">教材 · 框架</span></span><p>① 财务会计 ② 管理会计 ③ 审计学 ④ 税务会计 ⑤ 会计信息系统；理解不同分支的边界与协同。</p><span class="rp">对应 KB：会计分支（知识 1.4）</span></div></li>
+            <li><span class="ri">📘</span><div><span class="rb">毕业要求九大维度<span class="rt">教材 · OBE</span></span><p>思想品德、学科知识、专业知识、专业应用能力、数据应用能力、信息能力、创新创业、合作沟通、持续发展。</p><span class="rp">对应 KB：毕业要求（知识 1.5）</span></div></li>
+            <li><span class="ri">📖</span><div><span class="rb">CIMA 方向班 · 本校特色项目<span class="rt">招生亮点</span></span><p>本校 CIMA 方向班是特色项目（独立招生选拔），大二加修专属课程，毕业可获 CIMA 基础阶段证书进入 CGMA 通道。</p><span class="rp">对应 KB：CIMA（规划 4.1）</span></div></li>
+            <li><span class="ri">📖</span><div><span class="rb">会计证书体系（国内 + 国际）<span class="rt">阅读 · 规划</span></span><p>初级（大一可报）/ 中级 / CPA / 税务师；国际 ACCA / CMA。推荐路径：初级 → ACCA → CPA。</p><span class="rp">对应 KB：证书（规划 4.1）</span></div></li>
+            <li><span class="ri">🧪</span><div><span class="rb">巩固练习 · 知识 + 规划 维度<span class="rt">习题</span></span><p>建议做完「知识」11 题，再做「规划」5 题；专业解码侧重毕业要求与证书认知。</p><button class="ra" onclick="nav('practice')">前往习题 →</button></div></li>
+          </ul>
+          <div class="lesson-foot">🎯 学习目标：看懂培养方案，知道所学与未来方向的对应关系。</div>
+        </details>
+
+        <details class="lesson">
+          <summary>③ 行业能力 · 五维能力与 AI 时代 · 建议 4–6 学时</summary>
+          <ul class="res">
+            <li><span class="ri">📘</span><div><span class="rb">五维能力模型<span class="rt">教材 · 核心</span></span><p>专业能力（准则判断）、数据能力（Excel/SQL/Python/BI）、AI 能力（Prompt/RPA）、业务能力（业财融合）、学习能力（持续学习）。</p><span class="rp">对应 KB：五维能力（能力 2.3）</span></div></li>
+            <li><span class="ri">📘</span><div><span class="rb">AI 冲击与不可替代能力<span class="rt">教材 · 前瞻</span></span><p>可替代：凭证录入、对账、报表编制、发票 OCR；不可替代：专业判断、商业解释、跨部门沟通、伦理决策。</p><span class="rp">对应 KB：AI 冲击（素养 3.2）</span></div></li>
+            <li><span class="ri">📖</span><div><span class="rb">岗位地图：从出纳到 CFO 的多条路径<span class="rt">阅读 · 拓展</span></span><p>企业财务、事务所、金融机构、公务员、新兴岗位（财务 BP、智能风控、数据分析师、ESG 专员）。</p><span class="rp">对应 KB：岗位（规划 4.1）</span></div></li>
+            <li><span class="ri">📖</span><div><span class="rb">会计诚信与合规底线<span class="rt">阅读 · 红线</span></span><p>不伪造、不隐瞒、不迎合；违法红线：虚假财务报告、隐匿收入、虚假发票。案例：康得新、康美药业。</p><span class="rp">对应 KB：会计诚信（素养 3.1）</span></div></li>
+            <li><span class="ri">🧪</span><div><span class="rb">巩固练习 · 能力 + 素养 维度<span class="rt">习题</span></span><p>「能力」5 题重数据 / 判断；「素养」5 题重伦理 / 终身学习 / AI 协作。</p><button class="ra" onclick="nav('practice')">前往习题 →</button></div></li>
+          </ul>
+          <div class="lesson-foot">🎯 学习目标：建立"专业 + 数据 + AI + 业务 + 学习"五维竞争力，识别自身护城河。</div>
+        </details>
+
+        <details class="lesson">
+          <summary>④ 规划落地 · 四年个人发展路径 · 建议 2–3 学时</summary>
+          <ul class="res">
+            <li><span class="ri">📘</span><div><span class="rb">大一学年规划（打基础）<span class="rt">教材 · 行动</span></span><p>高数、英语、会计学原理、计算机基础；目标：通过初级会计（次年 5 月）、加入 1 个社团 / 1 个学科竞赛团队。</p><span class="rp">对应 KB：大一规划（能力 2.2）</span></div></li>
+            <li><span class="ri">📘</span><div><span class="rb">考研路径：MPAcc / 学硕 / 审计硕 / 税务硕<span class="rt">教材 · 进阶</span></span><p>MPAcc：199 管理类联考 + 英语二 + 政治 + 复试；学硕：政治 + 英语一 + 数学三 + 专业课；大三上定方向、大三下系统复习。</p><span class="rp">对应 KB：考研留学（规划 4.3）</span></div></li>
+            <li><span class="ri">📖</span><div><span class="rb">留学方向（英 / 澳 / 美 / 港）<span class="rt">阅读 · 多元</span></span><p>语言考试（雅思 / 托福 / GMAT）、GPA、实习 / 科研；大三上确定国家与方向。</p><span class="rp">对应 KB：考研留学（规划 4.3）</span></div></li>
+            <li><span class="ri">📖</span><div><span class="rb">CIMA / 证书 / 实习 / 竞赛组合<span class="rt">阅读 · 包装</span></span><p>证书 + 实习 + 学科竞赛 + 第二课堂，形成差异化简历；建议大二起每学期 1 段相关经历。</p><span class="rp">对应 KB：CIMA、证书、岗位（规划 4.1）</span></div></li>
+            <li><span class="ri">🧪</span><div><span class="rb">巩固练习 · 规划维度 5 题<span class="rt">习题</span></span><p>侧重路径选择与时间节点；做完参加「智能考核」形成 OBE 四维达成度报告。</p><button class="ra" onclick="nav('exam')">前往智能考核 →</button></div></li>
+          </ul>
+          <div class="lesson-foot">🎯 学习目标：把模糊的"未来"拆成四年可执行清单，立即开始第一步。</div>
+        </details>
+      </div>
+    </section>
+
+    <!-- 打卡 -->
+    <section id="page-checkin" class="hidden">
+      <div class="page-title">学习打卡</div>
+      <div class="page-sub">记录每天的学习投入，养成持续学习的习惯（呼应素养成果 3.2 / 能力 2.4）</div>
+      <div class="card">
+        <h3>✍️ 今日打卡</h3>
+        <div class="checkin-row">
+          <div class="field"><label>学习内容 / 课次</label>
+            <select id="ck-topic">
+              <option>课余自学</option><option>第1课 初识会计</option>
+              <option>第2课 专业解码</option><option>第3课 行业能力</option>
+              <option>第4课 规划落地</option>
+            </select></div>
+          <div class="field"><label>学习时长（分钟）</label><input id="ck-min" type="number" placeholder="如 30"></div>
+          <div class="field"><label>&nbsp;</label><button class="btn sm" onclick="doCheckin()">打卡</button></div>
+        </div>
+        <div class="records" id="ck-records"></div>
+      </div>
+    </section>
+
+    <!-- 练习 -->
+    <section id="page-practice" class="hidden">
+      <div class="page-title">习题练习</div>
+      <div class="page-sub">基于会小导知识库（K1–K8）自动出题与判分，做错即时解析</div>
+      <div class="card">
+        <h3>🧩 选择练习范围</h3>
+        <div id="bank-btns" class="grid g3"></div>
+      </div>
+      <div class="card" id="quiz-box"><p style="color:var(--sub)">请选择一个模块开始练习。</p></div>
+    </section>
+
+    <!-- 问答 -->
+    <section id="page-ask" class="hidden">
+      <div class="page-title">智能问答</div>
+      <div class="page-sub">基于会小导知识库（8 大领域 41 节点）的智能检索，输入你的疑问，例如「会计是什么」「怎么规划大一」</div>
+      <div class="card">
+        <div class="chat" id="chat"></div>
+        <div class="chat-input">
+          <input id="ask-input" placeholder="输入你的问题，回车发送…" onkeydown="if(event.key==='Enter')sendAsk()">
+          <button class="btn sm" onclick="sendAsk()">发送</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 考核 -->
+    <section id="page-exam" class="hidden">
+      <div class="page-title">智能考核评分</div>
+      <div class="page-sub">一套综合测验，自动判分并生成四大 OBE 成果达成度报告（知识 / 能力 / 素养 / 规划）</div>
+      <div class="card" id="exam-box"><p style="color:var(--sub)">点击「开始考核」生成专属测验。</p>
+        <button class="btn" onclick="startExam()" style="margin-top:8px">开始考核</button>
+      </div>
+    </section>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+/* ============ 知识库问答节点（源自 K1-K8） ============ */
+const KB = [
+  {k:"会计是什么",keys:["会计","定义","本质","通用语言","商业"],a:"会计是企业经济活动的「商业通用语言」，也是经济信息系统与治理工具——把经营活动翻译成可比、可验证、可沟通的数字信息，保障交易信任链。它不只是记账算账。",obe:"知识1.1"},
+  {k:"会计基本假设",keys:["假设","会计主体","持续经营","会计分期","货币计量"],a:"会计四大基本假设：会计主体、持续经营、会计分期、货币计量。理解这四点是后续学习报表的基础。",obe:"知识1.2"},
+  {k:"会计等式",keys:["等式","资产","负债","所有者权益","利润","收入","费用"],a:"静态等式：资产＝负债＋所有者权益；动态等式：利润＝收入－费用。六大会计要素分为静态三要素与动态三要素。",obe:"知识1.3"},
+  {k:"借贷规则",keys:["借","贷","借贷","复式","分录"],a:"借≠借钱、贷≠贷款。借方记资产/费用增加、负债/权益减少；贷方相反。核心规则：有借必有贷，借贷必相等。",obe:"知识1.3"},
+  {k:"财务报表",keys:["报表","资产负债表","利润表","现金流量表","三张"],a:"三大报表：资产负债表（时点）、利润表（期间）、现金流量表（现金进出），三者存在勾稽关系。",obe:"知识1.3"},
+  {k:"会计分支",keys:["分支","财务会计","管理会计","审计","税务","信息系统","五大"],a:"会计五大分支：①财务会计（外部报告）②管理会计（内部决策）③审计学（鉴证）④税务会计（准则与税法协同）⑤会计信息系统（流程+数据治理）。",obe:"知识1.4"},
+  {k:"会计信息质量",keys:["质量","可靠性","相关性","可比性","谨慎性","实质重于形式"],a:"会计信息八大质量要求：可靠性、相关性、可理解性、可比性、实质重于形式、重要性、谨慎性、及时性。可靠、相关是底线，谨慎性防高估资产与利润。",obe:"知识1.2"},
+  {k:"毕业要求",keys:["毕业","学位","要求","九大","德育"],a:"毕业要求 9 大维度：思想品德、学科知识、专业知识、专业应用能力、数据应用能力、信息能力、创新创业、合作沟通、持续发展。修满 150 学分并通过论文答辩授予管理学学士。",obe:"知识1.5"},
+  {k:"会计发展史",keys:["发展史","帕乔利","结绳","四柱","数智","阶段"],a:"会计四阶段：手工会计 → 电算化 → 信息化 → 数智化（大数据+AI+RPA）。1494 年帕乔利系统总结复式簿记，被誉为会计学之父；中国唐宋有「四柱清册」。",obe:"知识1.6"},
+  {k:"五维能力",keys:["能力","五维","专业","数据","AI","业务","学习"],a:"五维能力模型：专业能力（准则判断）、数据能力（Excel/SQL/Python/  BI）、AI能力（Prompt/RPA）、业务能力（业财融合）、学习能力（持续学习）。AI 能力是核心新增。",obe:"能力2.3"},
+  {k:"会计诚信",keys:["诚信","伦理","合规","红线","康得新","造假"],a:"会计诚信：不伪造、不隐瞒、不迎合不当要求；客观、专业胜任。违法红线：虚假财务报告、隐匿收入、虚假发票。案例警示：康得新、康美药业。",obe:"素养3.1"},
+  {k:"证书",keys:["证书","初级","CPA","ACCA","税务师","考证"],a:"国内：初级会计（大一可报）/中级/高级/CPA（5年过6科）/税务师；国际：ACCA（大一可注册）/CMA。规划：初级→ACCA→CPA。",obe:"规划4.1"},
+  {k:"岗位",keys:["岗位","出纳","CFO","事务所","审计","财务BP"],a:"岗位分类：企业财务（出纳→会计→CFO）、事务所（审计助理→合伙人）、金融机构、公务员、新兴岗位（财务BP、智能风控、数据分析师、ESG专员）。",obe:"规划4.1"},
+  {k:"AI冲击",keys:["AI","替代","自动化","机器人","护城河","不器"],a:"可替代：凭证录入、对账、报表编制、发票OCR等重复工作；不可替代：专业判断、商业解释、跨部门沟通、伦理决策、战略筹划。君子不器——AI 是放大镜不是替身。",obe:"素养3.2"},
+  {k:"大一规划",keys:["大一","规划","基础","初级会计","高数"],a:"大一打基础：高数、英语、会计学原理（4学分核心）、计算机基础；目标：通过初级会计考试（次年5月）、加入1个社团。",obe:"能力2.2"},
+  {k:"考研留学",keys:["考研","MPAcc","留学","保研"],a:"考研：会计学硕/会计专硕MPAcc（199管理类联考+英语二+政治+复试）/审计硕/税务硕。留学：英/澳/美/香港，大三上定方向、大三下系统复习。",obe:"规划4.3"},
+  {k:"CIMA",keys:["CIMA","方向班","特色","CGMA","本校"],a:"本校 CIMA 方向班是特色项目（独立招生选拔），大二开始加修 CIMA 专属课程，毕业后可获 CIMA 基础阶段证书进入 CGMA 通道，需单独申请选拔。",obe:"规划4.1"},
+  {k:"挂科",keys:["挂科","重修","补考","绩点","学分"],a:"挂科可补考（开学1-2周）或重修；绩点 90+为4.0。课程约 50 门，务必重视基础课。",obe:"知识1.5"},
+  {k:"会计循环",keys:["会计循环","循环","凭证","过账","试算","调整","结账","编报","八步","步骤"],a:"会计循环 8 步闭环：业务发生 → 填制原始凭证 → 编制记账凭证（分录）→ 登记账簿（过账）→ 试算平衡 → 期末调整（应计、折旧、摊销）→ 结转（收入费用结转到本年利润）→ 编制财务报表。记忆口诀：凭证→分录→过账→试算→调整→结账→编报。注意：试算平衡只能查出「借贷不等」，漏记整笔业务或借贷方向同时写反时试算表仍是平的，所以试算平衡不等于账一定对。",obe:"知识1.3"},
+  {k:"试算平衡",keys:["试算","平衡","借贷不等","对账","账实","勾稽"],a:"试算平衡是核对借贷合计是否相等的方法（全部账户借方发生额合计＝贷方发生额合计），只能发现记账错误，不能发现记账正确但记录不完整（如漏记整笔业务、借贷方向同时写反、金额同错）。因此试算表平了不等于账一定对，还需账账核对、账证核对、账实核对、账表核对。",obe:"知识1.3"},
+  {k:"借贷记账法",keys:["记账方法","借贷记账","账户","借方","贷方","余额"],a:"借贷记账法以「借」「贷」为记账符号：借方登记资产、费用、成本增加，登记负债、所有者权益减少；贷方反之。账户结构分四类：资产（借方登记余额在借方）、负债与所有者权益（贷方登记余额在贷方）、费用（借方）、收入（利润类，贷方余额表示增加）。有借必有贷，借贷必相等。",obe:"知识1.3"},
+  {k:"实习竞赛",keys:["实习","竞赛","比赛","案例","大三"],a:"实习大三开始为佳；竞赛推荐：数学建模、互联网+、案例分析、ACCA就业力大比拼、CIMA商业精英挑战赛、网中网杯财务决策大赛。",obe:"规划4.3"},
+];
+
+/* ============ 习题库（标注 OBE 维度） ============ */
+const QUIZ = [
+  {obe:"知识",q:"会计的本质被概括为什么？",opts:["商业通用语言","单纯记账算账","一种法律合同","税收工具"],ans:0,ex:"会计是企业经济活动的『商业通用语言』、经济信息系统与治理工具，而非单纯记账。"},
+  {obe:"知识",q:"会计四大基本假设不包括以下哪项？",opts:["会计主体","持续经营","权责发生制","货币计量"],ans:2,ex:"四大假设是会计主体、持续经营、会计分期、货币计量；权责发生制是记账基础，不是基本假设。"},
+  {obe:"知识",q:"会计恒等式（静态）是？",opts:["收入＝费用","资产＝负债＋所有者权益","利润＝收入－费用","资产＝收入"],ans:1,ex:"静态等式：资产＝负债＋所有者权益。"},
+  {obe:"知识",q:"「借」在借贷记账法中代表？",opts:["一定表示增加","资产/费用增加、负债/权益减少","负债增加","一定是负数"],ans:1,ex:"借≠借钱：借方记资产/费用增加、负债/权益减少；贷方相反。"},
+  {obe:"知识",q:"三大财务报表不包括？",opts:["资产负债表","利润表","现金流量表","所有者权益变动表（非基础三张）"],ans:3,ex:"基础三大报表：资产负债表（时点）、利润表（期间）、现金流量表（现金）。"},
+  {obe:"知识",q:"会计五大分支不含？",opts:["财务会计","管理会计","审计学","人力资源管理"],ans:3,ex:"五大分支：财务会计、管理会计、审计学、税务会计、会计信息系统。"},
+  {obe:"知识",q:"会计的四大基本假设是指？",opts:["会计主体、持续经营、会计分期、货币计量","计划、组织、领导、控制","借、贷、收、付","资产、负债、所有者权益、利润"],ans:0,ex:"会计四大基本假设：会计主体、持续经营、会计分期、货币计量，是财务会计确认、计量和报告的前提。"},
+  {obe:"知识",q:"会计的两大记账基础是？",opts:["权责发生制与收付实现制","借贷与复式","现金与应计","历史成本与公允价值"],ans:0,ex:"两大记账基础：权责发生制（按权利义务确认）与收付实现制（按现金收付确认）；企业会计采用权责发生制。"},
+  {obe:"知识",q:"被誉为「会计学之父」、系统总结复式簿记的是？",opts:["帕乔利(1494)","潘序伦","杨纪琬","谢霖"],ans:0,ex:"1494 年帕乔利《算术、几何、比与比例概要》系统总结复式簿记。"},
+  {obe:"能力",q:"下列不属于「AI 难以替代」的会计能力是？",opts:["专业判断","商业解释","凭证OCR录入","伦理决策"],ans: 2,ex:"凭证OCR录入属重复性工作，最易被自动化；判断、解释、决策才是护城河。"},
+  {obe:"能力",q:"五维能力模型中「核心新增」的能力是？",opts:["专业能力","AI能力","学习能力","业务能力"],ans:1,ex:"AI能力（Prompt工程、RPA、智能体部署）是数智时代会计的核心新增竞争力。"},
+  {obe:"素养",q:"会计职业违法红线不包括？",opts:["虚假财务报告","隐匿收入","虚假发票","按时申报纳税"],ans:3,ex:"按时申报纳税是合规行为；前三项均属违法红线。"},
+  {obe:"素养",q:"「君子不器」在本课程中的含义是？",opts:["要做工具人","AI 是替身","AI 是放大镜不是替身，人要保留判断力","不需要学技术"],ans:2,ex:"AI 越强大，人越不能工具化；思考外包=失去独立人格，AI 是放大镜不是替身。"},
+  {obe:"规划",q:"大一阶段的学习重点是？",opts:["直接考证CPA","高数/英语/会计学原理打基础","只学专业课","准备考研"],ans:1,ex:"大一打基础：高数、英语、会计学原理；目标次年5月通过初级会计。"},
+  {obe:"规划",q:"以下哪项证书大一即可报考？",opts:["中级会计","CPA","初级会计","税务师"],ans:2,ex:"初级会计职称大一即可报考；中级需工作年限，CPA/税务师也有年限或学历要求。"},
+  {obe:"规划",q:"本校 CIMA 方向班的特色是？",opts:["大一开始","大二加修专属课程、获CGMA通道","只面向研究生","免修英语"],ans:1,ex:"本校 CIMA 方向班大二开始加修专属课程，毕业可获 CIMA 基础阶段证书进入 CGMA 通道。"},
+  {obe:"知识",q:"会计循环的正确顺序是？",opts:["凭证→分录→过账→试算→调整→结账→编报","分录→凭证→编报→结账","过账→凭证→分录","结账→分录→编报"],ans:0,ex:"业务发生→凭证→分录→过账→试算平衡→调整→结账→编报，8 步闭环。"},
+
+  /* ===== 本次扩充：去特定学校、各维度均衡补充 ===== */
+  {obe:"知识",q:"会计的「六大会计要素」包括？",opts:["资产、负债、所有者权益、收入、费用、利润","借、贷、收、付","现金、存款、应收、应付","凭证、账簿、报表、报告"],ans:0,ex:"六要素：资产、负债、所有者权益（静态）+ 收入、费用、利润（动态），构成会计报表基础。"},
+  {obe:"知识",q:"下列属于「会计计量属性」的是？",opts:["历史成本、公允价值、重置成本","借贷、科目、分录","凭证、账簿","税率、利率"],ans:0,ex:"计量属性含历史成本、重置成本、可变现净值、现值、公允价值等，历史成本最常用。"},
+  {obe:"能力",q:"「业财融合」是指？",opts:["财务只做账、业务只打仗","财务深入业务、用数据支撑经营决策","财务与业务互不干涉","业务外包给财务"],ans:1,ex:"业财融合要求财务懂业务、用数据支撑经营决策，是数智时代会计核心价值。"},
+  {obe:"能力",q:"下列哪项属于「数据能力」而非传统会计能力？",opts:["凭证审核","Excel/SQL/Python 与 BI 可视化","账簿登记","报表打印"],ans:1,ex:"数智化要求会计具备 Excel、SQL、Python、BI 等数据能力，从「记账员」升级为「数据分析师」。"},
+  {obe:"能力",q:"面对「形式合规但实质不合理」的交易，会计应优先考虑？",opts:["实质重于形式，穿透判断","只看发票","领导说了算","忽略不管"],ans:0,ex:"专业判断要求实质重于形式，穿透交易实质而非仅看形式票据。"},
+  {obe:"素养",q:"会计人员应严守的职业基本原则不包括？",opts:["独立性","客观性","为老板随意调账","保密性"],ans:2,ex:"为老板随意调账违反客观独立与职业道德；独立性、客观性、保密性都是职业底线。"},
+  {obe:"素养",q:"「终身学习」对会计尤为重要，主要是因为？",opts:["准则与税法持续更新","会计不需要学新东西","证书永久有效","AI 不会进步"],ans:0,ex:"会计准则、税法、技术持续迭代，会计必须终身学习以保持专业胜任能力。"},
+  {obe:"素养",q:"关于会计数据伦理，正确的是？",opts:["数据可随意出售","保护隐私、合规使用数据","泄露客户信息无妨","AI 决策无需负责"],ans:1,ex:"数智时代会计须保护隐私、合规使用数据，对 AI 辅助决策保持人类责任。"},
+  {obe:"规划",q:"会计专硕（MPAcc）初试通常考？",opts:["199 管理类联考+英语二","高数一+专业课","仅英语","不需要考试"],ans:0,ex:"MPAcc 初试为 199 管理类联考综合能力 + 英语二，复试含专业课与政治。"},
+  {obe:"规划",q:"「财务 BP」是指？",opts:["只做报销的岗位","深入业务、用财务数据驱动决策的业务伙伴","银行柜员","审计助理"],ans:1,ex:"财务 BP（Business Partner）深入业务一线，用财务数据支撑业务决策，是新兴热门岗位。"},
+];
+
+/* 练习模块划分 */
+const BANKS = [
+  {id:"all",name:"全部习题",filter:function(q){return true}},
+  {id:"知识",name:"知识维度",filter:function(q){return q.obe==="知识"}},
+  {id:"能力",name:"能力维度",filter:function(q){return q.obe==="能力"}},
+  {id:"素养",name:"素养维度",filter:function(q){return q.obe==="素养"}},
+  {id:"规划",name:"规划维度",filter:function(q){return q.obe==="规划"}},
+];
+
+/* ============ 存储 ============ */
+const U_KEY="hxdao_users", S_KEY="hxdao_session", R_KEY="hxdao_records";
+const $ = function(s){return document.querySelector(s)};
+function users(){return JSON.parse(localStorage.getItem(U_KEY)||"[]")}
+function saveUsers(u){localStorage.setItem(U_KEY,JSON.stringify(u))}
+function rec(){try{return JSON.parse(localStorage.getItem(R_KEY)||"{}")}catch(e){return {}}}
+function saveRec(a){localStorage.setItem(R_KEY,JSON.stringify(a))}
+function hash(s){let h=0;for(let i=0;i<s.length;i++){h=(h*31+s.charCodeAt(i))>>>0}return h.toString(16)}
+function toast(msg){const t=$("#toast");t.textContent=msg;t.classList.add("show");setTimeout(function(){t.classList.remove("show")},2200)}
+
+/* ===== 认证 ===== */
+function showReg(){$("#login-form").classList.add("hidden");$("#reg-form").classList.remove("hidden")}
+function showLogin(){$("#reg-form").classList.add("hidden");$("#login-form").classList.remove("hidden")}
+function doReg(){
+  const id=$("#reg-id").value.trim(), name=$("#reg-name").value.trim(),
+        p=$("#reg-pwd").value, p2=$("#reg-pwd2").value;
+  if(!id||!name||!p){return toast("请填写完整信息")}
+  if(p!==p2){return toast("两次密码不一致")}
+  let u=users();
+  if(u.find(function(x){return x.id===id})){return toast("该学号已注册，请直接登录")}
+  u.push({id:id,name:name,pwd:hash(p)});saveUsers(u);
+  toast("注册成功，请登录");showLogin();
+}
+function doLogin(){
+  const id=$("#login-user").value.trim(), p=$("#login-pwd").value;
+  const u=users().find(function(x){return x.id===id&&x.pwd===hash(p)});
+  if(!u){return toast("账号或密码错误")}
+  localStorage.setItem(S_KEY,JSON.stringify({id:id,name:u.name}));
+  enter();
+}
+function logout(){localStorage.removeItem(S_KEY);location.reload()}
+function enter(){
+  $("#login-wrap").classList.add("hidden");$("#app").classList.remove("hidden");
+  const s=JSON.parse(localStorage.getItem(S_KEY));
+  $("#side-name").textContent=s.name;$("#side-id").textContent="学号 "+s.id;
+  $("#welcome").textContent="👋 "+s.name+"，欢迎回来！继续你的专业认知之旅。";
+  renderHome();renderCheckinList();buildBankBtns();
+  checkOnline();
+}
+
+/* ===== 导航 ===== */
+function nav(p){
+  document.querySelectorAll("section[id^='page-']").forEach(function(s){s.classList.add("hidden")});
+  $("#page-"+p).classList.remove("hidden");
+  const map={home:0,checkin:1,practice:2,ask:3,exam:4};
+  document.querySelectorAll(".nav-item").forEach(function(b){b.classList.remove("active")});
+  document.querySelectorAll(".nav-item")[map[p]].classList.add("active");
+}
+
+/* ===== 首页 / 雷达 ===== */
+function userRec(){const a=rec();const s=JSON.parse(localStorage.getItem(S_KEY));return a[s.id]||{checkins:[],practice:[],exam:null}}
+function renderHome(){
+  const r=userRec(); const c=r.checkins||[];
+  $("#st-checkin").textContent=c.length;
+  let streak=0;
+  const set=new Set(c.map(function(x){return x.date}));
+  let d=new Date();
+  while(set.has(d.toISOString().slice(0,10))){streak++;d.setDate(d.getDate()-1)}
+  $("#st-streak").textContent=streak;
+  $("#st-practice").textContent=(r.practice||[]).length;
+  drawRadar("#radar-home",computeOBE(r),"#dim-home");
+}
+function computeOBE(r){
+  const dims={知识:0,能力:0,素养:0,规划:0};
+  const cnt={知识:0,能力:0,素养:0,规划:0};
+  const q=(r.practice||[]);
+  q.forEach(function(x){cnt[x.obe]++;if(x.right)dims[x.obe]++});
+  Object.keys(dims).forEach(function(k){dims[k]=Math.round(dims[k]/Math.max(cnt[k],1)*100)});
+  return dims;
+}
+
+/* 纯 SVG 雷达图 */
+function drawRadar(sel,data,dimSel){
+  const dims=Object.keys(data);
+  const vals=dims.map(function(d){return data[d]});
+  const cx=160,cy=150,R=110,n=dims.length;
+  let svg='<svg viewBox="0 0 320 300" xmlns="http://www.w3.org/2000/svg" style="max-width:320px">';
+  for(let ring=1;ring<=4;ring++){
+    let pts="";
+    for(let i=0;i<n;i++){const ang=-Math.PI/2+i*2*Math.PI/n;const rr=R*ring/4;
+      pts+=(cx+rr*Math.cos(ang)).toFixed(1)+","+(cy+rr*Math.sin(ang)).toFixed(1)+" "}
+    svg+='<polygon points="'+pts+'" fill="none" stroke="#dbe3ef"/>';
+  }
+  let dpts="";
+  for(let i=0;i<n;i++){const ang=-Math.PI/2+i*2*Math.PI/n;const rr=R*vals[i]/100;
+    dpts+=(cx+rr*Math.cos(ang)).toFixed(1)+","+(cy+rr*Math.sin(ang)).toFixed(1)+" "}
+  svg+='<polygon points="'+dpts+'" fill="rgba(47,111, 237,.25)" stroke="#2f6fed" stroke-width="2"/>';
+  dims.forEach(function(d,i){const ang=-Math.PI/2+i*2*Math.PI/n;
+    const lx=cx+(R+22)*Math.cos(ang),ly=cy+(R+22)*Math.sin(ang);
+    svg+='<text x="'+lx.toFixed(1)+'" y="'+ly.toFixed(1)+'" font-size="12" fill="#1f2329" text-anchor="middle">'+d+'</text>';
+    svg+='<text x="'+lx.toFixed(1)+'" y="'+(ly+14).toFixed(1)+'" font-size="11" fill="#2f6fed" text-anchor="middle">'+data[d]+'%</text>';
+  });
+  svg+="</svg>";
+  $(sel).innerHTML=svg;
+  if(!dimSel) return;
+  let html="";
+  dims.forEach(function(d){html+='<div style="margin-bottom:10px"><div style="display:flex;justify-content:space-between"><span>'+d+'</span><b style="color:#2f6fed">'+data[d]+'%</b></div><div class="bar"><i style="width:'+data[d]+'%"></i></div></div>'});
+  $(dimSel).innerHTML=html;
+}
+
+/* ===== 打卡 ===== */
+function doCheckin(){
+  const topic=$("#ck-topic").value, min=parseInt($("#ck-min").value||"0");
+  if(min<=0) return toast("请输入有效时长");
+  const s=JSON.parse(localStorage.getItem(S_KEY));
+  const a=rec();if(!a[s.id])a[s.id]={checkins:[],practice:[],exam:null};
+  const today=new Date().toISOString().slice(0,10);
+  if(a[s.id].checkins.some(function(x){return x.date===today&&x.topic===topic})) return toast("该内容今日已打卡");
+  a[s.id].checkins.push({date:today,topic:topic,min:min});
+  saveRec(a);renderHome();renderCheckinList();
+  toast("✅ 打卡成功！");$("#ck-min").value="";
+}
+function renderCheckinList(){
+  const r=userRec();const box=$("#ck-records");
+  if(!r.checkins||r.checkins.length===0){box.innerHTML='<p style="color:var(--sub);font-size:13px">还没有打卡记录，今天就开始吧！</p>';return}
+  box.innerHTML=r.checkins.slice().reverse().slice(0,30).map(function(x){return '<div class="rec-item"><span class="date">'+x.date+'</span><span class="meta">'+x.topic+' · '+x.min+' 分钟</span></div>'}).join("");
+}
+
+/* ===== 练习 ===== */
+function buildBankBtns(){
+  const box=$("#bank-btns");
+  box.innerHTML=BANKS.map(function(b){return '<div class="stat" style="cursor:pointer;text-align:center" onclick="startQuiz(\''+b.id+'\')"><div class="num" style="font-size:18px">'+b.name+'</div><div class="lab">点击开始</div></div>'}).join("");
+}
+function startQuiz(bid){
+  const bank=BANKS.find(function(b){return b.id===bid});
+  const qs=QUIZ.filter(bank.filter);
+  let html='<h3>📋 '+bank.name+'（'+qs.length+' 题）</h3>';
+  qs.forEach(function(q,i){
+    const sid="q"+i;
+    html+='<div class="quiz-q" data-i="'+i+'" id="'+sid+'"><div class="q">'+ (i+1) +'. '+q.q+'</div>';
+    q.opts.forEach(function(o,j){
+      html+='<div class="opt" onclick="pick('+"'"+sid+"'"+','+i+','+j+',\''+bid+'\')" id="'+sid+'_'+j+'">'+String.fromCharCode(65+j)+'. '+o+'</div>';
+    });
+    html+='<div class="explain" id="'+sid+'_ex" style="display:none"></div></div>';
+  });
+  html+='<div style="margin-top:10px"><button class="btn" onclick="gradeQuiz(\''+bid+'\')">提交并评分</button></div>';
+  $("#quiz-box").innerHTML=html;
+}
+function pick(sid,i,j,bid){
+  const bank=BANKS.find(function(b){return b.id===bid});if(!bank)return;
+  const q=QUIZ.filter(bank.filter)[i];if(!q)return;
+  for(let k=0;k<q.opts.length;k++){const el=$("#"+sid+"_"+k);if(el)el.classList.remove("sel")}
+  const chosen=$("#"+sid+"_"+j);if(chosen)chosen.classList.add("sel");
+  const box=$("#"+sid);if(box)box.dataset.pick=j;
+}
+function gradeQuiz(bid){
+  const qs=QUIZ.filter(BANKS.find(function(b){return b.id===bid}).filter);
+  let right=0;
+  qs.forEach(function(q,i){
+    const sid="q"+i;const pickIdx=parseInt($("#"+sid).dataset.pick);
+    const ex=$("#"+sid+"_ex");ex.style.display="block";
+    let html="";
+    if(isNaN(pickIdx)){html='<span class="bad">未作答</span> 正确答案：'+String.fromCharCode(65+q.ans)+'. '+q.opts[q.ans]+'<br>'+q.ex;}
+    else if(pickIdx===q.ans){right++;html='<span class="ok">✓ 正确</span> '+q.ex;}
+    else{$("#"+sid+"_"+pickIdx).classList.add("wrong");html='<span class="bad">✗ 错误</span> 正确答案：'+String.fromCharCode(65+q.ans)+'. '+q.opts[q.ans]+'<br>'+q.ex;}
+    $("#"+sid+"_"+q.ans).classList.add("correct");
+    ex.innerHTML=html;
+  });
+  const s=JSON.parse(localStorage.getItem(S_KEY));const a=rec();
+  if(!a[s.id].practice)a[s.id].practice=[];
+  qs.forEach(function(q,i){const pickIdx=parseInt($("#q"+i).dataset.pick);
+    a[s.id].practice.push({obe:q.obe,right:pickIdx===q.ans})});
+  saveRec(a);renderHome();
+  toast("本次答对 "+right+"/"+qs.length+"，已计入档案");
+}
+
+/* ===== 智能问答（优先大模型，离线降级本地知识库） ===== */
+/* 后端地址解析优先级：
+   1) URL 参数 ?api=  —— 线上 GitHub Pages 可指向你的后端服务
+   2) localStorage  —— 在页面内手动设置过则沿用
+   3) 同源空串        —— 用 server.js 托管时自动命中
+   4) file:// 直开    —— 指向本地 8000
+*/
+function resolveApiBase(){
+  var q=new URLSearchParams(location.search).get("api");
+  if(q) return q.replace(/\/+$/,"");
+  var saved=localStorage.getItem("hxdao_api");
+  if(saved) return saved.replace(/\/+$/,"");
+  if(location.protocol==="file:") return "http://localhost:8000";
+  return "";
+}
+const API_BASE = resolveApiBase();
+let ONLINE=false, ENGINE_LABEL="", LAST_ERROR="";
+function setEngineTag(text,color){const t=$("#online-tag");if(!t)return;t.textContent=text;t.style.color=color;}
+function engineSettings(){
+  const cur=localStorage.getItem("hxdao_api")||API_BASE||"（同源）";
+  const v=prompt("输入后端服务地址（留空=使用当前地址）\n当前：" + cur + "\n\n说明：\n· 用 server.js 本机托管时留空即可\n· 部署到服务器后填 https://你的域名", cur);
+  if(v===null) return;
+  if(v.trim()===""){localStorage.removeItem("hxdao_api")}
+  else{localStorage.setItem("hxdao_api",v.trim().replace(/\/+$/,""))}
+  location.reload();
+}
+function checkOnline(){
+  if(typeof fetch!=="function"){setEngineTag("● 当前环境不支持网络请求 — 离线知识库模式","#e8a300");return}
+  if(location.protocol === "file:"){
+    setEngineTag("● 离线模式（本地文件）— 想用大模型请用 http://localhost:8000 打开","#e8a300");
+  }
+  fetch(API_BASE+"/api/config",{cache:"no-store"}).then(function(r){
+    if(!r.ok) throw new Error("HTTP "+r.status);
+    return r.json();
+  }).then(function(d){
+    ONLINE=!!d.configured;
+    ENGINE_LABEL=d.model||"";
+    if(ONLINE){setEngineTag("● 智能引擎已连接"+(ENGINE_LABEL?"（"+ENGINE_LABEL+"）":""),"#1aa15a")}
+    else{setEngineTag("● 后端已连接，但未配置模型密钥 — 走离线知识库","#e8a300")}
+  }).catch(function(e){
+    LAST_ERROR=String(e.message||e);
+    ONLINE=false;
+    setEngineTag("● 离线模式（本地知识库）— 点此设置后端","#e8a300");
+    const t=$("#online-tag");if(t){t.style.cursor="pointer";t.title="点击设置后端服务地址";t.onclick=engineSettings}
+  });
+}
+function sendAsk(){
+  const inp=$("#ask-input");const txt=inp.value.trim();if(!txt)return;
+  inp.value="";
+  const chat=$("#chat");
+  chat.innerHTML+='<div class="bubble user">'+escapeHTML(txt)+'</div>';
+  const typing=document.createElement("div");
+  typing.className="bubble bot";
+  typing.id="ask-typing";
+  typing.innerHTML=ONLINE
+    ? '<span style="color:#8b93a7">智能引擎思考中…</span>'
+    : '<span style="color:#8b93a7">本地检索中…</span>';
+  chat.appendChild(typing);chat.scrollTop=chat.scrollHeight;
+  const say=function(html){const el=$("#ask-typing");if(el)el.outerHTML=html;else chat.insertAdjacentHTML("beforeend",html);chat.scrollTop=chat.scrollHeight;};
+
+  if(!ONLINE){
+    say(localReply(txt));
+    return;
+  }
+  const history=[];
+  fetch(API_BASE+"/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({question:txt,history:history})})
+  .then(function(r){return r.json().then(function(d){return{status:r.status,d:d}})})
+  .then(function(res){
+    if(res.status!==200||res.d.error){
+      say(localReply(txt));
+      if(res.d&&res.d.error) toast("智能引擎异常，已降级离线回答");
+      return;
+    }
+    let html='<div class="bubble bot">'+formatLLM(res.d.answer)+'</div>';
+    if(res.d.grounded&&res.d.grounded.length){
+      html+='<div class="grounded">依据知识库：'+res.d.grounded.join("、")+'</div>';
+    }
+    say(html);
+  })
+  .catch(function(){say(localReply(txt));toast("无法连接后端，已降级离线回答")});
+}
+function escapeHTML(s){
+  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+function localReply(txt){
+  // 检索打分：关键词命中按字长累加；标题被整体提及额外加权
+  // （否则「会计是什么」会因 keys 含"会计"而压过「会计等式」）
+  let best=null,bestScore=0;
+  KB.forEach(function(node){
+    let sc=0;
+    node.keys.forEach(function(k){if(k&&txt.indexOf(k)>=0)sc+=k.length});
+    if(node.k&&txt.indexOf(node.k)>=0)sc+=10;
+    if(sc>bestScore){bestScore=sc;best=node}
+  });
+  if(best&&bestScore>0){
+    return '<div class="bubble bot"><div style="font-weight:600;margin-bottom:4px">'+escapeHTML(best.k)+'</div>'+escapeHTML(best.a)+'<div class="obe">对应 OBE：'+escapeHTML(best.obe)+'</div></div>';
+  }
+  return '<div class="bubble bot">未在我的知识库中直接匹配到「'+escapeHTML(txt)+'」。你可以试试问我：会计是什么、会计等式、会计信息质量、五维能力、AI 冲击、如何规划大一、考研留学、CIMA 方向班、挂科怎么办等。</div>';
+}
+/* 轻量 Markdown 渲染：先转义，再处理 **粗体** / 行内 `代码` / 列表 / 小标题
+   模型输出含 Markdown，必须渲染结构，否则一坨纯文本学生读不下去 */
+function formatLLM(text){
+  let s=String(text||"");
+  s=s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  const lines=s.split(/\r?\n/);
+  let out=[],listType="";
+  function closeList(){if(listType){out.push(listType==="ol"?"</ol>":"</ul>");listType=""}}
+  for(let raw of lines){
+    const line=raw.trim();
+    if(!line){closeList();continue}
+    let m=line.match(/^#{1,4}\s+(.*)$/);
+    if(m){closeList();out.push('<div class="md-h">'+inline(m[1])+'</div>');continue}
+    m=line.match(/^[-*•]\s+(.*)$/);
+    if(m){if(listType!=="ul"){closeList();out.push('<ul class="md-ul">');listType="ul"}out.push('<li>'+inline(m[1])+'</li>');continue}
+    m=line.match(/^\d+[.、)]\s+(.*)$/);
+    if(m){if(listType!=="ol"){closeList();out.push('<ol class="md-ol">');listType="ol"}out.push('<li>'+inline(m[1])+'</li>');continue}
+    closeList();
+    out.push('<p class="md-p">'+inline(line)+'</p>');
+  }
+  closeList();
+  return out.join("");
+}
+function inline(t){
+  return String(t)
+    .replace(/\*\*(.+?)\*\*/g,'<b>$1</b>')
+    .replace(/`([^`]+?)`/g,'<code>$1</code>');
+}
+
+/* ===== 智能考核 ===== */
+function startExam(){
+  let html='<h3>🎯 综合测验（'+QUIZ.length+' 题，自动判分）</h3>';
+  QUIZ.forEach(function(q,i){
+    const sid="e"+i;
+    html+='<div class="quiz-q" data-i="'+i+'" id="'+sid+'"><div class="q">'+ (i+ 1) +'. ['+q.obe+'] '+q.q+'</div>';
+    q.opts.forEach(function(o,j){html+='<div class="opt" onclick="pickExam(\''+sid+'\','+i+','+j+')" id="'+sid+'_'+j+'">'+String.fromCharCode(65+j)+'. '+o+'</div>'});
+    html+='<div class="explain" id="'+sid+'_ex" style="display:none"></div></div>';
+  });
+  html+='<div style="margin-top:10px"><button class="btn" onclick="gradeExam()">提交考核</button></div>';
+  $("#exam-box").innerHTML=html;
+}
+function pickExam(sid,i,j){
+  const q=QUIZ[i];
+  for(let k=0;k<q.opts.length;k++){const el=$("#"+sid+"_"+k);if(el)el.classList.remove("sel")}
+  const chosen=$("#"+sid+"_"+j);if(chosen)chosen.classList.add("sel");
+  const box=$("#"+sid);if(box)box.dataset.pick=j;
+}
+function gradeExam(){
+  let right=0;const dims={知识:0,能力:0,素养:0,规划:0},cnt={知识:0,能力:0,素养:0,规划:0};
+  QUIZ.forEach(function(q,i){
+    const sid="e"+i;const box=$("#"+sid);
+    if(!box)return;
+    const pickIdx=parseInt(box.dataset.pick);
+    const ex=$("#"+sid+"_ex");if(ex)ex.style.display="block";
+    if(!isNaN(pickIdx)&&pickIdx===q.ans){right++;dims[q.obe]++;if(ex)ex.innerHTML='<span class="ok">✓ 正确</span> '+q.ex;}
+    else{
+      if(ex)ex.innerHTML='<span class="bad">'+(isNaN(pickIdx)?'未作答':'✗ 错误')+'</span> 正确答案：'+String.fromCharCode(65+q.ans)+'. '+q.opts[q.ans]+'<br>'+q.ex;
+      if(!isNaN(pickIdx)&&$("#"+sid+"_"+pickIdx))$("#"+sid+"_"+pickIdx).classList.add("wrong");
+    }
+    const correctEl=$("#"+sid+"_"+q.ans);if(correctEl)correctEl.classList.add("correct");
+    cnt[q.obe]++;
+  });
+  Object.keys(dims).forEach(function(k){dims[k]=Math.round(dims[k]/Math.max(cnt[k],1)*100)});
+  const s=JSON.parse(localStorage.getItem(S_KEY));const a=rec();
+  const mistakes=[];
+  QUIZ.forEach(function(q,i){ if(parseInt($("#e"+i).dataset.pick)!==q.ans){ mistakes.push(q.q+"（正确答案："+q.opts[q.ans]+"）") }});
+  a[s.id].exam={score:right,total:QUIZ.length,date:new Date().toISOString().slice(0,10),dims:dims};
+  saveRec(a);renderHome();
+  const weak=Object.entries(dims).sort(function(a,b){return a[1]-b[1]})[0][0];
+  let html2='<h3>📊 考核结果</h3><div class="radar-wrap"><div id="radar-exam"></div><div class="dim-list"></div></div>';
+  html2+='<p style="margin-top:14px">总分正确率 <b style="color:#2f6fed">'+right+'/'+QUIZ.length+'</b>（'+Math.round(right/QUIZ.length*100)+'%）。</p>';
+  html2+='<div id="exam-diagnosis" style="margin-top:14px;padding:14px;border-radius:10px;background:#f6f8fc;font-size:14px">智能体正在生成个性化诊断…</div>';
+  $("#exam-box").innerHTML=html2;
+  drawRadar("#radar-exam",dims,"#exam-box .dim-list");
+  if(ONLINE){
+    fetch(API_BASE+"/api/exam",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({dims:dims,weak:weak,mistakes:mistakes,plan:""})})
+    .then(function(r){return r.json().then(function(d){return{status:r.status,d:d}})})
+    .then(function(res){
+      const fb=$("#exam-diagnosis");if(!fb)return;
+      if(res.status===200&&res.d.diagnosis){
+        fb.innerHTML='<b style="color:#2f6fed">🤖 智能诊断</b>'+formatLLM(res.d.diagnosis);
+      }else{
+        fb.innerHTML='你的「'+weak+'」维度相对薄弱，建议回到「习题练习」针对性巩固，或向智能问答提问相关知识点。';
+      }
+    })
+    .catch(function(){
+      const fb=$("#exam-diagnosis");if(!fb)return;
+      fb.innerHTML='你的「'+weak+'」维度相对薄弱，建议回到「习题练习」针对性巩固，或向智能问答提问相关知识点。';
+    });
+  }else{
+    $("#exam-diagnosis").innerHTML='你的「'+weak+'」维度相对薄弱，建议回到「习题练习」针对性巩固，或向智能问答提问相关知识点。（离线模式：配置大模型密钥后可获得个性化诊断）';
+  }
+  toast("考核完成，已生成达成度报告");
+}
+
+/* 初始：若已登录直接进入 */
+if(localStorage.getItem(S_KEY))enter();
+</script>
+</body>
+</html>
