@@ -10,6 +10,10 @@ import path from 'path';
 import fs from 'fs';
 import http from 'http';
 import { fileURLToPath } from 'url';
+import { createRequire } from 'module';
+
+const require2 = createRequire(import.meta.url);
+const { makeD1 } = require2('./_mock_d1.js');
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -94,6 +98,20 @@ function post(base, p, body) {
     { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(obj) },
     e
   ).then(r => r.json().then(j => ({ code: r.status, body: j })));
+
+  // 教师看板专用env：带口令 + D1
+  const TKEY = 'teacher-pass-2026';
+  const tEnv = (db, over) => Object.assign(
+    env({ TEACHER_KEY: TKEY, DB: db }),
+    over || {}
+  );
+  const tGet = (p, db) => call(p, { headers: { 'X-Teacher-Key': TKEY } }, tEnv(db));
+  const tPost = (p, obj, db) => call(
+    p,
+    { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Teacher-Key': TKEY }, body: JSON.stringify(obj) },
+    tEnv(db)
+  ).then(r => r.json().then(j => ({ code: r.status, body: j })));
+  const report = (obj, db) => postJSON('/api/report', obj, tEnv(db));
 
   console.log('\n=== 1. 模块结构 ===');
   eq(typeof handler, 'object', '导出 default 对象');
@@ -272,12 +290,152 @@ function post(base, p, body) {
   const hj = await (await call('/health')).json();
   eq(hj.service, '会小导 · 智能引擎', '健康检查含服务名');
 
-  console.log('\n=== 13. 密钥不外泄 ===');
+  console.log('\n=== 12. 未绑定 D1 时的降级 ===');
+  eq((await report({ sid: '20260001', name: '张三', score: 8, total: 10, dims: {}, wrong: 2, date: '2026-10-07' }, null)).code, 503,
+    '未绑定 DB → 503（学生端据此静默跳过，不报错）');
+  eq((await call('/api/teacher/stats', { headers: { 'X-Teacher-Key': TKEY } }, tEnv(null))).status, 503,
+    '看板未绑定 DB → 503');
+  const hj2 = await (await call('/health')).json();
+  eq(hj2.hasDb, false, '健康检查报告未绑定数据库');
+
+  console.log('\n=== 13. /api/report 成绩上报 ===');
+  const db1 = makeD1([]);
+  let rr = await report({ sid: '20260001', name: '张三', score: 8, total: 10, dims: { '知识': 85, '能力': 70, '素养': 60, '规划': 90 }, wrong: 2, date: '2026-10-07' }, db1);
+  eq(rr.code, 200, '上报成功 200');
+  eq(rr.body.ok, true, '返回 ok:true');
+  eq(db1.__rows.length, 1, '数据库新增 1 行');
+  const r1 = db1.__rows[0];
+  eq(r1.sid, '20260001', '学号入库');
+  eq(r1.name, '张三', '姓名入库');
+  eq(r1.d_knowledge, 85, '知识维度入库');
+  eq(r1.d_planning, 90, '规划维度入库');
+  ok(typeof r1.ts === 'number' && r1.ts > 1600000000000, '写入时间戳');
+
+  // 同日重复交卷 → 覆盖不新增
+  await report({ sid: '20260001', name: '张三', score: 9, total: 10, dims: { '知识': 95, '能力': 80, '素养': 70, '规划': 100 }, wrong: 1, date: '2026-10-07' }, db1);
+  eq(db1.__rows.length, 1, '同日重复交卷仍是 1 行（未新增）');
+  eq(db1.__rows[0].score, 9, '同日重复交卷覆盖为最新分数');
+  eq(db1.__rows[0].d_knowledge, 95, '同日重复交卷覆盖四维');
+
+  // 不同日期 → 新增一行
+  await report({ sid: '20260001', name: '张三', score: 7, total: 10, dims: { '知识': 70 }, wrong: 3, date: '2026-10-08' }, db1);
+  eq(db1.__rows.length, 2, '不同日期新增一行');
+
+  console.log('\n--- 14. /api/report 参数校验 ---');
+  eq((await report({ name: '张三', score: 8, total: 10, date: '2026-10-07' }, db1)).code, 400, '缺 sid → 400');
+  eq((await report({ sid: '', name: '张三', score: 8, total: 10, date: '2026-10-07' }, db1)).code, 400, 'sid 为空 → 400');
+  eq((await report({ sid: '20260001', score: 8, total: 10, date: '2026-10-07' }, db1)).code, 200, '无姓名也允许（只填学号可用）');
+  eq((await report({ sid: '20260001', score: 8, total: 10, date: '10/07/2026' }, db1)).code, 400, '日期格式错 → 400');
+  eq((await report({ sid: '20260001', score: 8, total: 10 }, db1)).code, 400, '缺日期 → 400');
+  eq((await report({ sid: 'x'.repeat(50), score: 8, total: 10, date: '2026-10-07' }, db1)).code, 400, '学号超长 → 400');
+  // 越界数值应被钳制（用独立库，避免与前面用例的行混淆）
+  const dbClamp = makeD1([]);
+  eq((await report({ sid: '99999999', score: 99999, total: 10, dims: { '知识': 9999, '能力': -50 }, wrong: -5, date: '2026-10-07' }, dbClamp)).code, 200, '越界数值不报错（被钳制）');
+  const clamped = dbClamp.__rows[0];
+  eq(clamped.d_knowledge, 100, '四维超 100 被钳到 100');
+  eq(clamped.d_ability, 0, '四维负数被钳到 0');
+  eq(clamped.wrong, 0, '负数错题数被钳到 0');
+  eq(clamped.score, 1000, '分数被钳到上限 1000');
+  eq(clamped.total, 10, '总题数正常保留');
+
+  console.log('\n--- 15. /api/report 隐私边界 ---');
+  const db2 = makeD1([]);
+  await report({ sid: '20260002', name: '李四', score: 6, total: 10, dims: { '知识': 60 }, wrong: 4, date: '2026-10-07', answerDetail: 'SECRET_作答明细', chatLog: 'SECRET_AI提问', browsing: 'SECRET_浏览行为' }, db2);
+  const stored = db2.__rows[0];
+  ok(!JSON.stringify(stored).includes('SECRET'), '多余字段（作答明细/AI提问/浏览行为）不入库');
+  ok(!('answerDetail' in stored) && !('chatLog' in stored) && !('browsing' in stored), '库中无个人明细字段');
+  eq(Object.keys(stored).sort().join(','), 'd_ability,d_knowledge,d_literacy,d_planning,date,name,score,sid,total,ts,wrong',
+    '只存 11 个汇总字段（无明细）');
+  const hj3 = await (await call('/health', null, tEnv(db2))).json();
+  eq(hj3.hasDb, true, '绑定后健康检查 hasDb=true');
+
+  console.log('\n=== 16. 教师鉴权 ===');
+  eq((await postJSON('/api/teacher', { key: TKEY }, tEnv(db1))).code, 200, '口令正确 → 200');
+  eq((await postJSON('/api/teacher', { key: 'wrong' }, tEnv(db1))).code, 401, '口令错误 → 401');
+  eq((await postJSON('/api/teacher', {}, tEnv(db1))).code, 401, '不传口令 → 401');
+  eq((await postJSON('/api/teacher', { key: '' }, tEnv(db1))).code, 401, '空口令 → 401');
+  eq((await postJSON('/api/teacher', { key: TKEY }, env({}))).code, 503, '服务端未设 TEACHER_KEY → 503');
+  eq((await postJSON('/api/teacher', { key: TKEY }, tEnv(db1, { TEACHER_KEY: '' }))).code, 503, 'TEACHER_KEY 为空串 → 503（不算已配置）');
+
+  const db2auth = makeD1([]);
+  eq((await call('/api/teacher/stats', { headers: { 'X-Teacher-Key': TKEY } }, tEnv(db2auth))).status, 200, '带正确口令读看板 200');
+  eq((await call('/api/teacher/stats', { headers: { 'X-Teacher-Key': 'wrong' } }, tEnv(db2auth))).status, 401, '错误口令读看板 401');
+  eq((await call('/api/teacher/stats', {}, tEnv(db2auth))).status, 401, '不带口令读看板 401');
+  eq((await call('/api/teacher/export', { headers: { 'X-Teacher-Key': 'wrong' } }, tEnv(db2auth))).status, 401, '错误口令导出 401');
+  eq((await call('/api/teacher/stats', { headers: { 'X-Teacher-Key': TKEY } }, env({ DB: db2auth }))).status, 401, '未设 TEACHER_KEY 时一律 401（不泄露数据）');
+
+  console.log('\n=== 17. CORS 放行 X-Teacher-Key ===');
+  const ch = await call('/api/chat', { method: 'OPTIONS' });
+  ok(ch.headers.get('Access-Control-Allow-Headers').indexOf('X-Teacher-Key') >= 0,
+    '预检允许 X-Teacher-Key 头（否则浏览器跨域读不到看板）');
+
+  console.log('\n=== 18. 看板统计（真实数据链路） ===');
+  const db3 = makeD1([]);
+  await report({ sid: '20260001', name: '张三', score: 10, total: 10, dims: { '知识': 100, '能力': 95, '素养': 90, '规划': 98 }, wrong: 0, date: '2026-10-07' }, db3);
+  await report({ sid: '20260002', name: '李四', score: 5, total: 10, dims: { '知识': 50, '能力': 45, '素养': 60, '规划': 40 }, wrong: 5, date: '2026-10-07' }, db3);
+  await report({ sid: '20260003', name: '王五', score: 8, total: 10, dims: { '知识': 80, '能力': 70, '素养': 85, '规划': 75 }, wrong: 2, date: '2026-10-07' }, db3);
+  await report({ sid: '20260004', name: '赵六', score: 7, total: 10, dims: { '知识': 70, '能力': 75, '素养': 65, '规划': 72 }, wrong: 3, date: '2026-10-08' }, db3);
+
+  const st = await (await call('/api/teacher/stats', { headers: { 'X-Teacher-Key': TKEY } }, tEnv(db3))).json();
+  eq(st.totalStudents, 4, '统计学生人数 4');
+  eq(st.totalRecords, 4, '统计记录总数 4');
+  eq(st.students.length, 4, '返回 4 条学生记录');
+  eq(st.students[0].sid, '20260002', '名单按正确率升序（最低分在前，方便教师关注）');
+  eq(st.students[0].rate, 50, '最低分正确率 50');
+  eq(st.students[3].sid, '20260001', '最高分在最后');
+  eq(st.bands.length, 5, '分数段 5 档');
+  const bandSum = st.bands.reduce((s, b) => s + b.n, 0);
+  eq(bandSum, 4, '分数段人数之和 = 学生数（无漏档）');
+  eq(st.bands[0].n, 1, '90分以上 1 人');
+  eq(st.bands[4].n, 1, '60分以下 1 人');
+  eq(st.dimAvg.知识, 75, '知识维度均分 = (100+50+80+70)/4');
+  eq(st.dimAvg.规划, 71, '规划维度均分 = (98+40+75+72)/4 ≈ 71');
+  eq(st.byDate.length, 2, '两个考核日期');
+  eq(st.byDate[0].date, '2026-10-07', '日期升序第一天');
+  eq(st.byDate[0].n, 3, '第一天 3 人交卷');
+  eq(st.byDate[0].avg_rate, 77, '第一天平均正确率 (100+50+80)/3 ≈ 77');
+
+  console.log('\n=== 19. 空库不崩 ===');
+  const dbEmpty = makeD1([]);
+  const st0 = await (await call('/api/teacher/stats', { headers: { 'X-Teacher-Key': TKEY } }, tEnv(dbEmpty))).json();
+  eq(st0.totalStudents, 0, '空库学生数 0');
+  eq(st0.dimAvg.知识, 0, '空库维度均分 0（不NaN）');
+  eq(st0.bands.reduce((s, b) => s + b.n, 0), 0, '空库分数段全0');
+  const csvEmpty = await call('/api/teacher/export', { headers: { 'X-Teacher-Key': TKEY } }, tEnv(dbEmpty));
+  eq(csvEmpty.status, 200, '空库导出仍 200（给表头）');
+
+  console.log('\n=== 20. CSV 导出 ===');
+  const csvRes = await call('/api/teacher/export', { headers: { 'X-Teacher-Key': TKEY } }, tEnv(db3));
+  eq(csvRes.status, 200, '导出 200');
+  ok(csvRes.headers.get('Content-Type').indexOf('text/csv') >= 0, 'Content-Type 是 text/csv');
+  ok((csvRes.headers.get('Content-Disposition') || '').indexOf('attachment') >= 0, '作为附件下载');
+  // BOM 必须在原始字节层面校验：response.text() 会把 BOM 解码成 U+FEFF 字符，
+  // 若在传输中被丢弃就查不出来了，所以按字节看 EF BB BF。
+  const csvBytes = new Uint8Array(await csvRes.clone().arrayBuffer());
+  ok(csvBytes[0] === 0xEF && csvBytes[1] === 0xBB && csvBytes[2] === 0xBF,
+    '带 UTF-8 BOM（Excel 打开中文不乱码）',
+    '前三字节=' + Array.from(csvBytes.slice(0, 3)).map(b => b.toString(16)).join(' '));
+  const csvText = await csvRes.text();
+  const csvLines = csvText.replace(/^\ufeff/, '').split('\n').filter(x => x.trim());
+  eq(csvLines[0], '日期,学号,姓名,答对,总题,正确率%,知识%,能力%,素养%,规划%,错题数', '表头正确');
+  eq(csvLines.length, 5, '4 条数据 + 1 表头');
+  ok(csvLines[1].indexOf('20260004') >= 0, '最新日期排在最前（ORDER BY date DESC）');
+  ok(!csvText.includes('SECRET'), '导出内容不含个人明细');
+
+  console.log('\n=== 21. D1 异常兜底 ===');
+  const dbBroken = { prepare() { throw new Error('D1 unavailable'); } };
+  eq((await report({ sid: '20260001', score: 8, total: 10, date: '2026-10-07' }, dbBroken)).code, 500, 'D1 抛错 → 500（不崩 Worker）');
+  const stErr = await call('/api/teacher/stats', { headers: { 'X-Teacher-Key': TKEY } }, tEnv(dbBroken));
+  eq(stErr.status, 500, '看板 D1 抛错 → 500');
+  const expErr = await call('/api/teacher/export', { headers: { 'X-Teacher-Key': TKEY } }, tEnv(dbBroken));
+  eq(expErr.status, 500, '导出 D1 抛错 → 500');
+
+  console.log('\n=== 22. 密钥不外泄 ===');
   const allSrc = codeOnly;
   ok(allSrc.indexOf('sk-') < 0, '源码无硬编码密钥');
   ok(allSrc.indexOf('LLM_API_KEY') >= 0, '密钥从 env 读取');
 
-  console.log('\n=== 14. Wrangler 配置 ===');
+  console.log('\n=== 23. Wrangler 配置 ===');
   const tomlPath = path.resolve(__dirname, 'wrangler.toml');
   ok(fs.existsSync(tomlPath), 'wrangler.toml 存在');
   const toml = fs.readFileSync(tomlPath, 'utf8');
@@ -303,6 +461,44 @@ function post(base, p, body) {
   } else {
     ok(false, '能解析出 main 字段');
   }
+
+  // D1 绑定：binding 名必须与 worker.js 里读的 env.DB 对上，否则线上报 503
+  ok(/\[\[d1_databases\]\]/.test(toml), '声明了 D1 数据库绑定');
+  ok(/binding\s*=\s*"DB"/.test(toml), 'binding 名为 DB（与 worker.js 的 env.DB 对应）');
+  const dbIdMatch = toml.match(/database_id\s*=\s*"([^"]+)"/);
+  ok(!!dbIdMatch, '声明了 database_id');
+  ok(!!dbIdMatch && /^[0-9a-f-]{36}$/i.test(dbIdMatch[1]), 'database_id 是合法 UUID',
+    dbIdMatch ? dbIdMatch[1] : '缺失');
+  ok(/database_name\s*=\s*"hui-xiao-dao"/.test(toml), 'database_name 为 hui-xiao-dao');
+
+  console.log('\n=== 24. 建表脚本 ===');
+  const schemaPath = path.resolve(__dirname, 'schema.sql');
+  ok(fs.existsSync(schemaPath), 'schema.sql 存在');
+  if (fs.existsSync(schemaPath)) {
+    const sc = fs.readFileSync(schemaPath, 'utf8');
+    ok(/CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS\s+reports/i.test(sc), '建reports 表');
+    // worker.js 的 INSERT 列必须都在表里
+    const ins = src.match(/INSERT\s+INTO\s+reports\s*\(([^)]+)\)/i);
+    ok(!!ins, '能从 worker.js 解析出 INSERT 列清单');
+    if (ins) {
+      const insCols = ins[1].split(',').map(s => s.trim()).filter(Boolean);
+      const body = sc.match(/CREATE\s+TABLE[^;]+;/i);
+      ok(!!body, '能解析出建表语句');
+      if (body) {
+        insCols.forEach(c => {
+          ok(body[0].toLowerCase().indexOf(c.toLowerCase() + ' ') >= 0 ||
+             body[0].toLowerCase().indexOf(c.toLowerCase() + '\n') >= 0 ||
+             body[0].toLowerCase().indexOf(c.toLowerCase()) >= 0, '表里有列：' + c);
+        });
+      }
+      ok(sc.indexOf('PRIMARY KEY (sid, date)') >= 0, '主键为 (sid,date)（支撑 ON CONFLICT 去重）');
+    }
+    // SELECT 里用到的别名列也必须在表中
+    ['d_knowledge', 'd_ability', 'd_literacy', 'd_planning', 'wrong', 'ts', 'name', 'score', 'total', 'date'].forEach(c => {
+      ok(sc.toLowerCase().indexOf(c.toLowerCase()) >= 0, 'schema 含列：' + c);
+    });
+  }
+  ok(src.indexOf('env.DB') >= 0, 'worker.js 从 env.DB 取数据库');
 
   mockServer.close();
 
