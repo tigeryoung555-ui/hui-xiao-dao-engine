@@ -11,7 +11,8 @@
     "test:worker": "node _test_worker.mjs",
     "test:teacher": "node _test_teacher.js",
     "test:report": "node _test_report.js",
-    "test:all": "node _test_worker.mjs && node _test_page.js && node _test_teacher.js && node _test_report.js",
+    "test:apibase": "node _test_apibase.js",
+    "test:all": "node _test_worker.mjs && node _test_page.js && node _test_teacher.js && node _test_report.js && node _test_apibase.js",
     "dev": "npx wrangler dev",
     "deploy": "npx wrangler deploy",
     "db:init": "wrangler d1 execute hui-xiao-dao --remote --file=schema.sql"
