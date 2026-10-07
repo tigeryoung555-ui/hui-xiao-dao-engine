@@ -4,3 +4,9 @@ compatibility_date = "2025-01-01"
 
 [observability]
 enabled = true
+
+# D1 学情数据库（只存成绩汇总行，不存个人作答明细）
+[[d1_databases]]
+binding = "DB"
+database_name = "hui-xiao-dao"
+database_id = "e387785c-e11f-49f1-ab72-f653612ee7cb"
