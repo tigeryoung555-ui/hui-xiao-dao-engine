@@ -1,33 +1,40 @@
 /* =============================================================
    会小导 · 智能引擎后端（Cloudflare Worker 版）
    -------------------------------------------------------------
-   用途：与 server.js 等价的 RAG 智能引擎，部署到 Cloudflare Workers
-         （免费额度：每天 10 万次请求，300+ 全球节点，无需信用卡）。
+   用途：RAG 智能引擎 + 学情数据上报与教师看板 API
+         部署到 Cloudflare Workers（免费额度：10 万次请求/天）
 
-   与 server.js 的差异：
-     · callLLM  用 fetch 取代 Node 的 https.request
-     · 路由      用 export default { fetch } 取代 http.createServer
-     · 环境变量  用 env.LLM_API_KEY 取代 process.env.LLM_API_KEY
-     · 不做静态托管（前端本来就由 GitHub Pages 托管，不重复托管）
+   路由：
+     GET  /api/config      引擎是否就绪
+     POST /api/chat         知识库检索(RAG) + 大模型作答
+     POST /api/exam         基于考核结果生成个性化诊断
+     POST /api/report       上报一次考核成绩（学情汇总用）
+     POST /api/teacher      教师登录校验
+     GET  /api/teacher/stats 教师看板数据（需口令）
+     GET  /api/teacher/export 导出 CSV（需口令）
 
-   RAG 核心逻辑（知识库 KB、检索 retrieve、系统提示词）与 server.js 完全一致，
-   改平台时不需要重新验证检索质量。
+   环境变量（全部用 wrangler secret put 设置，不写进代码）：
+     LLM_API_KEY   必填，模型服务商的密钥
+     TEACHER_KEY   必填，教师端口令明文（比对用，留痕风险低于存哈希）
+     LLM_BASE_URL  可选
+     LLM_MODEL     可选
+     DB            绑定名，Cloudflare D1 数据库
 
-   部署：npx wrangler deploy
-   密钥：wrangler secret put LLM_API_KEY   （不要写进 wrangler.toml）
+   数据与隐私：
+     · 只上报「谁在何时考了多少分、四维各多少」这一行汇总数据
+     · 不上传个人作答明细、不上传浏览行为、不上传 AI 提问内容
+     · 上报失败不阻塞学生答题（前端已做降级处理）
    ============================================================= */
 
 'use strict';
 
 /* ---------- 运行环境 ---------- */
-// Workers 里环境变量挂在 env 上，不是 process.env。
 function readEnv(env, name, fallback) {
   const v = env && env[name];
   return v === undefined || v === null || v === '' ? fallback : v;
 }
 
-/* ---------- 知识库（与前端 index.html 中的 KB、与 server.js 保持同步） ----------
-   这是检索增强的语料来源。每条：k=标题, keys=检索关键词, a=答案正文, obe=成果达成度编号 */
+/* ---------- 知识库（与前端 index.html中的 KB、与 server.js 保持同步） ---------- */
 const KB = [
   { k: '会计是什么', keys: ['会计', '定义', '本质', '通用语言', '商业'], a: '会计是企业经济活动的「商业通用语言」，也是经济信息系统与治理工具——把经营活动翻译成可比、可验证、可沟通的数字信息，保障交易信任链。它不只是记账算账。', obe: '知识1.1' },
   { k: '会计基本假设', keys: ['假设', '会计主体', '持续经营', '会计分期', '货币计量'], a: '会计四大基本假设：会计主体、持续经营、会计分期、货币计量。理解这四点是后续学习报表的基础。', obe: '知识1.2' },
@@ -53,7 +60,7 @@ const KB = [
   { k: '实习竞赛', keys: ['实习', '竞赛', '比赛', '案例', '大三'], a: '实习大三开始为佳；竞赛推荐：数学建模、互联网+、案例分析、ACCA就业力大比拼、CIMA商业精英挑战赛、网中网杯财务决策大赛。', obe: '规划4.3' },
 ];
 
-/* ---------- 检索：按关键词命中打分 ---------- */
+/* ---------- 检索 ---------- */
 function retrieve(question, topN) {
   topN = topN || 3;
   const q = String(question || '');
@@ -62,12 +69,8 @@ function retrieve(question, topN) {
     let score = 0;
     const hit = [];
     for (const k of node.keys) {
-      if (k && q.indexOf(k) >= 0) {
-        score += k.length;
-        hit.push(k);
-      }
+      if (k && q.indexOf(k) >= 0) { score += k.length; hit.push(k); }
     }
-    // 标题整体命中给一个较强的权重
     if (node.k && q.indexOf(node.k) >= 0) score += 10;
     if (score > 0) scored.push({ node: node, score: score, hit: hit });
   }
@@ -108,79 +111,59 @@ const EXAM_SYSTEM_PROMPT = [
   '5. 如果四个维度都达标，就转向更高阶的学习建议（竞赛、证书、科研、AI 工具实践），不要硬造薄弱点。'
 ].join('\n');
 
-/* ---------- 调用大模型（OpenAI 兼容协议，改用 fetch） ----------
-   Workers 里没有 Node 的 https 模块，但原生 fetch 就是标准做法。
-   超时用AbortController 实现（Workers 里 setTimeout 可用，但 Abort 更干净）。 */
+/* ---------- 调用大模型 ---------- */
 async function callLLM(cfg, messages, timeoutMs) {
   const url = cfg.baseUrl + '/chat/completions';
   const controller = new AbortController();
   const timer = setTimeout(function () { controller.abort(); }, timeoutMs || 45000);
-
   try {
     const res = await fetch(url, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + cfg.apiKey
-      },
-      body: JSON.stringify({
-        model: cfg.model,
-        messages: messages,
-        temperature: 0.6,
-        max_tokens: 1200,
-        stream: false
-      }),
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + cfg.apiKey },
+      body: JSON.stringify({ model: cfg.model, messages: messages, temperature: 0.6, max_tokens: 1200, stream: false }),
       signal: controller.signal
     });
-
     const raw = await res.text();
-
-    if (res.status !== 200) {
-      throw new Error('模型服务返回 ' + res.status + '：' + raw.slice(0, 300));
-    }
-
+    if (res.status !== 200) throw new Error('模型服务返回 ' + res.status + '：' + raw.slice(0, 300));
     let parsed;
-    try {
-      parsed = JSON.parse(raw);
-    } catch (e) {
-      throw new Error('模型返回解析失败：' + raw.slice(0, 200));
-    }
-
-    const text = parsed.choices && parsed.choices[0] && parsed.choices[0].message
-      ? parsed.choices[0].message.content
-      : '';
+    try { parsed = JSON.parse(raw); } catch (e) { throw new Error('模型返回解析失败：' + raw.slice(0, 200)); }
+    const text = parsed.choices && parsed.choices[0] && parsed.choices[0].message ? parsed.choices[0].message.content : '';
     if (!text) throw new Error('模型返回内容为空');
     return String(text);
   } catch (e) {
-    // fetch 的网络类错误信息很不直观，这里补一句可读的话
     if (e && e.name === 'AbortError') throw new Error('模型响应超时');
     throw e;
-  } finally {
-    clearTimeout(timer);
-  }
+  } finally { clearTimeout(timer); }
 }
 
 /* ---------- 响应工具 ---------- */
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
+  'Access-Control-Allow-Headers': 'Content-Type, X-Teacher-Key',
   'Access-Control-Max-Age': '86400'
 };
 
-function json(code, obj, extraHeaders) {
-  const headers = Object.assign({
-    'Content-Type': 'application/json; charset=utf-8',
-    'Cache-Control': 'no-store'
-  }, CORS, extraHeaders || {});
-  return new Response(JSON.stringify(obj), { status: code, headers: headers });
+function json(code, obj) {
+  return new Response(JSON.stringify(obj), {
+    status: code,
+    headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }
+  });
+}
+function jsonSec(code, obj) {
+  return new Response(JSON.stringify(obj), {
+    status: code,
+    headers: Object.assign({ 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }, CORS)
+  });
+}
+function text(code, msg) {
+  return new Response(msg, { status: code, headers: Object.assign({ 'Content-Type': 'text/plain; charset=utf-8' }, CORS) });
 }
 
-function text(code, msg) {
-  return new Response(msg, {
-    status: code,
-    headers: Object.assign({ 'Content-Type': 'text/plain; charset=utf-8' }, CORS)
-  });
+function authOk(request, cfg) {
+  if (!cfg.teacherKey) return false;
+  const h = request.headers.get('X-Teacher-Key') || '';
+  return h.length > 0 && h === cfg.teacherKey;
 }
 
 /* ---------- 路由 ---------- */
@@ -192,104 +175,220 @@ export default {
     const cfg = {
       apiKey: readEnv(env, 'LLM_API_KEY', ''),
       baseUrl: String(readEnv(env, 'LLM_BASE_URL', 'https://api.deepseek.com/v1')).replace(/\/+$/, ''),
-      model: readEnv(env, 'LLM_MODEL', 'deepseek-chat')
+      model: readEnv(env, 'LLM_MODEL', 'deepseek-chat'),
+      teacherKey: readEnv(env, 'TEACHER_KEY', '')
     };
     const CONFIGURED = Boolean(cfg.apiKey);
+    const db = (env && env.DB) || null;
 
-    if (request.method === 'OPTIONS') {
-      return new Response(null, { status: 204, headers: CORS });
-    }
+    if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
 
-    /* --- 引擎状态：前端启动时调用，决定显示"真模型"还是"离线知识库" --- */
+    /* --- 引擎状态 --- */
     if (p === '/api/config' && request.method === 'GET') {
-      return json(200, {
-        configured: CONFIGURED,
-        model: CONFIGURED ? cfg.model : null
-      });
+      return jsonSec(200, { configured: CONFIGURED, model: CONFIGURED ? cfg.model : null });
     }
 
     /* --- 智能问答 --- */
     if (p === '/api/chat' && request.method === 'POST') {
       let payload;
-      try {
-        payload = await request.json();
-      } catch (e) {
-        return json(400, { error: '请求体不是合法 JSON' });
-      }
-      if (!payload || typeof payload !== 'object') {
-        return json(400, { error: '请求体不是合法 JSON' });
-      }
-
+      try { payload = await request.json(); } catch (e) { return jsonSec(400, { error: '请求体不是合法 JSON' }); }
+      if (!payload || typeof payload !== 'object') return jsonSec(400, { error: '请求体不是合法 JSON' });
       const question = String(payload.question || '').trim();
-      if (!question) return json(400, { error: '问题不能为空' });
-      if (question.length > 500) return json(400, { error: '问题过长' });
-      if (!CONFIGURED) return json(503, { error: '服务端未配置 LLM_API_KEY' });
+      if (!question) return jsonSec(400, { error: '问题不能为空' });
+      if (question.length > 500) return jsonSec(400, { error: '问题过长' });
+      if (!CONFIGURED) return jsonSec(503, { error: '服务端未配置 LLM_API_KEY' });
 
-      // 检索增强：把命中的知识库节点作为参考材料
       const hits = retrieve(question, 3);
       const context = buildContext(hits);
-
       const messages = [
         { role: 'system', content: SYSTEM_PROMPT + (context ? '\n\n' + context : '\n\n（本轮未命中知识库节点，请依据通用会计知识回答，并提示学生可从四课次配套资源中查找对应知识点。）') },
         { role: 'user', content: question }
       ];
-
       try {
         const answer = await callLLM(cfg, messages);
-        return json(200, {
-          answer: answer,
-          grounded: hits.map(function (h) { return h.node.k; })
-        });
+        return jsonSec(200, { answer: answer, grounded: hits.map(function (h) { return h.node.k; }) });
       } catch (e) {
-        return json(502, { error: '模型调用失败：' + e.message });
+        return jsonSec(502, { error: '模型调用失败：' + e.message });
       }
     }
 
     /* --- 考核诊断 --- */
     if (p === '/api/exam' && request.method === 'POST') {
       let payload;
-      try {
-        payload = await request.json();
-      } catch (e) {
-        return json(400, { error: '请求体不是合法 JSON' });
-      }
-      if (!payload || typeof payload !== 'object') {
-        return json(400, { error: '请求体不是合法 JSON' });
-      }
-
-      if (!CONFIGURED) return json(503, { error: '服务端未配置 LLM_API_KEY' });
+      try { payload = await request.json(); } catch (e) { return jsonSec(400, { error: '请求体不是合法 JSON' }); }
+      if (!payload || typeof payload !== 'object') return jsonSec(400, { error: '请求体不是合法 JSON' });
+      if (!CONFIGURED) return jsonSec(503, { error: '服务端未配置 LLM_API_KEY' });
 
       const dims = payload.dims || {};
       const mistakes = Array.isArray(payload.mistakes) ? payload.mistakes.slice(0, 20) : [];
       const weak = String(payload.weak || '');
-
       const lines = [
         '四维得分：知识 ' + (dims['知识'] || 0) + '%、能力 ' + (dims['能力'] || 0) + '%、素养 ' + (dims['素养'] || 0) + '%、规划 ' + (dims['规划'] || 0) + '%。',
         '最薄弱维度：' + (weak || '无') + '。'
       ];
-      if (mistakes.length) {
-        lines.push('错题记录：');
-        for (const m of mistakes) lines.push('- ' + m);
-      } else {
-        lines.push('本次无错题。');
-      }
+      if (mistakes.length) { lines.push('错题记录：'); for (const m of mistakes) lines.push('- ' + m); }
+      else { lines.push('本次无错题。'); }
 
       try {
         const diagnosis = await callLLM(cfg, [
           { role: 'system', content: EXAM_SYSTEM_PROMPT },
           { role: 'user', content: lines.join('\n') }
         ]);
-        return json(200, { diagnosis: diagnosis });
+        return jsonSec(200, { diagnosis: diagnosis });
       } catch (e) {
-        return json(502, { error: '模型调用失败：' + e.message });
+        return jsonSec(502, { error: '模型调用失败：' + e.message });
+      }
+    }
+
+    /* --- 上报一次考核成绩（仅汇总行，不含个人作答明细） --- */
+    if (p === '/api/report' && request.method === 'POST') {
+      let payload;
+      try { payload = await request.json(); } catch (e) { return jsonSec(400, { error: '请求体不是合法 JSON' }); }
+      if (!payload || typeof payload !== 'object') return jsonSec(400, { error: '请求体不是合法 JSON' });
+      if (!db) return jsonSec(503, { error: '未绑定数据库 D1' });
+
+      const sid = String(payload.sid || '').trim();
+      const name = String(payload.name || '').trim();
+      if (!sid) return jsonSec(400, { error: '缺少学号 sid' });
+      if (sid.length > 32 || name.length > 32) return jsonSec(400, { error: '学号或姓名过长' });
+
+      const score = clampNum(payload.score, 0, 1000);
+      const total = clampNum(payload.total, 1, 1000);
+      const dims = payload.dims || {};
+      const wrong = clampNum(payload.wrong, 0, 1000);
+
+      // 按「学号 + 日期」去重：同一天重复交卷只保留最后一次
+      const date = String(payload.date || '').slice(0, 10);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return jsonSec(400, { error: '日期格式应为 YYYY-MM-DD' });
+
+      try {
+        await db.prepare(
+          'INSERT INTO reports (sid,name,score,total,d_knowledge,d_ability,d_literacy,d_planning,wrong,date,ts) ' +
+          'VALUES (?,?,?,?,?,?,?,?,?,?,?) ' +
+          'ON CONFLICT(sid,date) DO UPDATE SET ' +
+          'name=excluded.name,score=excluded.score,total=excluded.total,' +
+          'd_knowledge=excluded.d_knowledge,d_ability=excluded.d_ability,' +
+          'd_literacy=excluded.d_literacy,d_planning=excluded.d_planning,' +
+          'wrong=excluded.wrong,ts=excluded.ts'
+        ).bind(
+          sid, name, score, total,
+          clampNum(dims['知识'], 0, 100), clampNum(dims['能力'], 0, 100),
+          clampNum(dims['素养'], 0, 100), clampNum(dims['规划'], 0, 100),
+          wrong, date, Date.now()
+        ).run();
+        return jsonSec(200, { ok: true });
+      } catch (e) {
+        return jsonSec(500, { error: '写入失败：' + String(e.message || e).slice(0, 200) });
+      }
+    }
+
+    /* --- 教师看板：登录校验 --- */
+    if (p === '/api/teacher' && request.method === 'POST') {
+      let payload;
+      try { payload = await request.json(); } catch (e) { return jsonSec(400, { error: '请求体不是合法 JSON' }); }
+      const k = String((payload && payload.key) || '');
+      if (!cfg.teacherKey) return jsonSec(503, { error: '服务端未设置 TEACHER_KEY' });
+      if (k !== cfg.teacherKey) return jsonSec(401, { error: '口令不正确' });
+      return jsonSec(200, { ok: true });
+    }
+
+    /* --- 教师看板：统计数据（需口令） --- */
+    if (p === '/api/teacher/stats' && request.method === 'GET') {
+      if (!authOk(request, cfg)) return jsonSec(401, { error: '口令不正确' });
+      if (!db) return jsonSec(503, { error: '未绑定数据库 D1' });
+
+      try {
+        // 各日期的提交情况与四维均分
+        const byDate = await db.prepare(
+          'SELECT date, COUNT(*) AS n, ROUND(AVG(score*100.0/total)) AS avg_rate, ' +
+          'ROUND(AVG(d_knowledge)) AS k, ROUND(AVG(d_ability)) AS a, ' +
+          'ROUND(AVG(d_literacy)) AS l, ROUND(AVG(d_planning)) AS p ' +
+          'FROM reports GROUP BY date ORDER BY date'
+        ).all();
+
+        // 学生名单（去重，取最新一次）
+        const students = await db.prepare(
+          'SELECT sid, name, score, total, ROUND(score*100.0/total) AS rate, ' +
+          'd_knowledge AS k, d_ability AS a, d_literacy AS l, d_planning AS p, date ' +
+          'FROM reports ORDER BY rate ASC'
+        ).all();
+
+        const rows = (byDate.results) || [];
+        const stus = (students.results) || [];
+
+        // 分数段分布（按最后一次成绩）
+        const bands = [
+          { label: '90分以上', min: 90, max: 101, n: 0 },
+          { label: '80-89', min: 80, max: 90, n: 0 },
+          { label: '70-79', min: 70, max: 80, n: 0 },
+          { label: '60-69', min: 60, max: 70, n: 0 },
+          { label: '60分以下', min: 0, max: 60, n: 0 }
+        ];
+        stus.forEach(function (s) {
+          const r = Number(s.rate) || 0;
+          for (let i = 0; i < bands.length; i++) {
+            if (r >= bands[i].min && r < bands[i].max) { bands[i].n++; break; }
+          }
+        });
+
+        // 四维整体均分
+        const dimAvg = { 知识: 0, 能力: 0, 素养: 0, 规划: 0 };
+        if (stus.length) {
+          dimAvg.知识 = Math.round(stus.reduce(function (s, x) { return s + (Number(x.k) || 0); }, 0) / stus.length);
+          dimAvg.能力 = Math.round(stus.reduce(function (s, x) { return s + (Number(x.a) || 0); }, 0) / stus.length);
+          dimAvg.素养 = Math.round(stus.reduce(function (s, x) { return s + (Number(x.l) || 0); }, 0) / stus.length);
+          dimAvg.规划 = Math.round(stus.reduce(function (s, x) { return s + (Number(x.p) || 0); }, 0) / stus.length);
+        }
+
+        return jsonSec(200, {
+          totalStudents: stus.length,
+          totalRecords: (await db.prepare('SELECT COUNT(*) AS n FROM reports').first()).n,
+          byDate: rows,
+          students: stus,
+          bands: bands,
+          dimAvg: dimAvg
+        });
+      } catch (e) {
+        return jsonSec(500, { error: '查询失败：' + String(e.message || e).slice(0, 200) });
+      }
+    }
+
+    /* --- 教师看板：导出 CSV --- */
+    if (p === '/api/teacher/export' && request.method === 'GET') {
+      if (!authOk(request, cfg)) return text(401, '口令不正确');
+      if (!db) return text(503, '未绑定数据库 D1');
+      try {
+        const res = await db.prepare(
+          'SELECT date,sid,name,score,total,ROUND(score*100.0/total) AS rate,' +
+          'd_knowledge,d_ability,d_literacy,d_planning,wrong FROM reports ORDER BY date DESC, sid'
+        ).all();
+        const head = '日期,学号,姓名,答对,总题,正确率%,知识%,能力%,素养%,规划%,错题数';
+        const lines = [(res.results || []).map(function (r) {
+          return [r.date, r.sid, r.name, r.score, r.total, r.rate, r.d_knowledge, r.d_ability, r.d_literacy, r.d_planning, r.wrong].join(',');
+        }).join('\n')];
+        const csv = head + '\n' + lines[0];
+        return new Response('\ufeff' + csv, {
+          headers: Object.assign({
+            'Content-Type': 'text/csv; charset=utf-8',
+            'Content-Disposition': 'attachment; filename="class-report.csv"'
+          }, CORS)
+        });
+      } catch (e) {
+        return text(500, '导出失败：' + String(e.message || e).slice(0, 200));
       }
     }
 
     /* --- 健康检查 --- */
     if (p === '/' || p === '/health') {
-      return json(200, { ok: true, service: '会小导 · 智能引擎', configured: CONFIGURED });
+      return jsonSec(200, { ok: true, service: '会小导 · 智能引擎', configured: CONFIGURED, hasDb: Boolean(db) });
     }
 
     return text(404, '404 Not Found');
   }
 };
+
+function clampNum(v, lo, hi) {
+  const n = Number(v);
+  if (!isFinite(n)) return 0;
+  return Math.max(lo, Math.min(hi, Math.round(n)));
+}
