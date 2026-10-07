@@ -1,0 +1,24 @@
+# 依赖
+node_modules/
+
+# 环境变量与密钥 —— 绝不能提交
+.env
+.env.*
+*.key
+*.pem
+
+# 测试与临时产物
+_test_*.log
+_*.txt
+_*.json
+!package.json
+!package-lock.json
+
+# 编辑器
+.vscode/
+.idea/
+.DS_Store
+
+# 日志
+*.log
+npm-debug.log*
