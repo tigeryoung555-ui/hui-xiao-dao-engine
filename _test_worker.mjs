@@ -281,13 +281,28 @@ function post(base, p, body) {
   const tomlPath = path.resolve(__dirname, 'wrangler.toml');
   ok(fs.existsSync(tomlPath), 'wrangler.toml 存在');
   const toml = fs.readFileSync(tomlPath, 'utf8');
-  // Wrangler 同时接受 TOML(`main = "..."`) 与 JSON 风格(`"main": "..."`) 两种写法
-  // 这里不用正则，避免转义在跨环境时损坏
+
+  // 关键：wrangler.toml 必须是真 TOML 语法（key = value，用等号）。
+  // 之前误写成 JSON 风格（"main": "..."），字符串检查能通过但 wrangler 会拒绝解析。
+  const firstMeaning = toml.replace(/\s+/g, '').charAt(0);
+  ok(firstMeaning !== '{', '不是 JSON 风格（TOML 顶层不能以 { 开头）', '首字符=' + firstMeaning);
+  ok(toml.indexOf(':') < 0, '没有 JSON 风格的冒号（TOML 用 = 号）');
+
   const norm = toml.replace(/\s+/g, '');
-  ok(norm.indexOf('main":"worker.js') >= 0 || norm.indexOf('main="worker.js') >= 0, 'main 指向 worker.js');
-  ok(toml.indexOf('compatibility_date') >= 0, '声明compatibility_date（必需）');
+  ok(norm.indexOf('main="worker.js"') >= 0, 'main = "worker.js"（TOML 等号写法）');
+  ok(toml.indexOf('compatibility_date') >= 0, '声明 compatibility_date（必需）');
+  ok(/name\s*=\s*"[^"]+"/.test(toml.replace(/\s+/g, ' ')), '声明 name（决定 workers.dev 子域名）');
   ok(toml.indexOf('sk-') < 0, '配置里无密钥');
   ok(toml.toLowerCase().indexOf('api_key') < 0 && toml.toLowerCase().indexOf('token') < 0, '配置里无密钥字段（密钥走 wrangler secret put）');
+
+  // main 指向的文件必须真的存在，否则 wrangler deploy 直接失败
+  const mainMatch = toml.match(/main\s*=\s*"([^"]+)"/);
+  if (mainMatch) {
+    const target = path.resolve(__dirname, mainMatch[1]);
+    ok(fs.existsSync(target), 'main 指向的文件存在：' + mainMatch[1]);
+  } else {
+    ok(false, '能解析出 main 字段');
+  }
 
   mockServer.close();
 
