@@ -1,7 +1,7 @@
 {
   "name": "hui-xiao-dao-engine",
-  "version": "2.0.0",
-  "description": "会小导·学习中心 智能引擎后端（会计学专业导论 AI 学习平台）",
+  "version": "2.1.0",
+  "description": "会小导·学习中心 智能引擎后端 + 教师学情看板（会计学专业导论 AI 学习平台）",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -9,8 +9,12 @@
     "test:page": "node _test_page.js",
     "test:e2e": "node _test_e2e.js",
     "test:worker": "node _test_worker.mjs",
+    "test:teacher": "node _test_teacher.js",
+    "test:report": "node _test_report.js",
+    "test:all": "node _test_worker.mjs && node _test_page.js && node _test_teacher.js && node _test_report.js",
     "dev": "npx wrangler dev",
-    "deploy": "npx wrangler deploy"
+    "deploy": "npx wrangler deploy",
+    "db:init": "wrangler d1 execute hui-xiao-dao --remote --file=schema.sql"
   },
   "engines": {
     "node": ">=18"
