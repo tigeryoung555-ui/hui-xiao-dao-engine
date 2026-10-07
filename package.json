@@ -1,0 +1,22 @@
+{
+  "name": "hui-xiao-dao-engine",
+  "version": "2.0.0",
+  "description": "会小导·学习中心 智能引擎后端（会计学专业导论 AI 学习平台）",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node _test_server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "accounting",
+    "education",
+    "rag",
+    "llm",
+    "teaching"
+  ],
+  "license": "MIT",
+  "private": true
+}
