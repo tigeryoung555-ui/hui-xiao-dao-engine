@@ -5,7 +5,12 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node _test_server.js"
+    "test": "node _test_server.js",
+    "test:page": "node _test_page.js",
+    "test:e2e": "node _test_e2e.js",
+    "test:worker": "node _test_worker.mjs",
+    "dev": "npx wrangler dev",
+    "deploy": "npx wrangler deploy"
   },
   "engines": {
     "node": ">=18"
